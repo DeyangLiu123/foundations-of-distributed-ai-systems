@@ -1,0 +1,42 @@
+filters:
+  and:
+    - 'lesson != null'
+    - 'file.ext == "md"'
+
+formulas:
+  terms_count: 'if(terms, terms.length, 0)'
+
+properties:
+  lesson:
+    displayName: "编号"
+  file.name:
+    displayName: "课程"
+  status:
+    displayName: "状态"
+  date:
+    displayName: "完成日期"
+  formula.terms_count:
+    displayName: "术语数"
+
+views:
+  - type: table
+    name: "全部课程"
+    groupBy:
+      property: module
+      direction: ASC
+    order:
+      - lesson
+      - file.name
+      - status
+      - date
+      - formula.terms_count
+    summaries:
+      formula.terms_count: Sum
+
+  - type: cards
+    name: "卡片视图"
+    order:
+      - file.name
+      - lesson
+      - status
+      - date
