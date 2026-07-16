@@ -99,7 +99,7 @@ tags:
   5. workload 画像（给后续模块的接口）：数万卡 × 数月、纯吞吐导向、全同步步调（每 step 全局同步一次梯度——这就是 M5/M6 的主角场景）、失败重来代价巨大（M7 的主角场景）。
   6. 案例串讲：以 Llama-3 405B 为例过一遍（15.6T token、~16K H100、54 天量级、GBS/上下文分阶段——数字以报告为准，标注「见原文」）。
 - **必收术语**：pretraining、corpus、CommonCrawl、data cleaning/filtering、deduplication、data mixture、data curriculum、annealing、shard、held-out/validation loss、benchmark、MMLU（认名即可）、contamination、base model、training run、loss spike、token budget。
-- **定量环节**：数据存储账：15T token ≈ 30 TB（2B/token 存 token id）+ 原始网页数 PB 量级；再算一天吞吐：16384 卡 × 400 TFLOPS 有效 ÷（6×405×10⁹ FLOPs/token）≈ 2.7×10⁶ token/s ≈ **2.3×10¹¹ token/天**；15.6T ÷ 2.3×10¹¹ ≈ 68 天——与公开的「~54 天主训练」同数量级即算对（有效算力假设不同会差一截，要求实现者把假设写明）。
+- **定量环节**：数据存储账：15T token 的 token-id 数组——词表 128256 → 每 token 至少 17 bit：位打包理论下限 ≈ 32 TB，常见 uint32 存法 ≈ 60 TB（「2 B/token」只对 ≤65536 的词表成立：GPT-2 的 50257 可以、Llama-3 不行——顺手教「见到存储数字先问口径」）+ 原始网页数 PB 量级；再算一天吞吐：16384 卡 × 400 TFLOPS 有效 ÷（6×405×10⁹ FLOPs/token）≈ 2.7×10⁶ token/s ≈ **2.3×10¹¹ token/天**；15.6T ÷ 2.3×10¹¹ ≈ 68 天——与公开的「~54 天主训练」同数量级即算对（有效算力假设不同会差一截，要求实现者把假设写明）。
 - **图示**：① 数据管线漏斗图（原始 PB → 清洗后 XX TB → 15T token）；② 典型 loss 曲线（标注 spike、annealing 阶段）。
 - **延伸阅读**：《The Llama 3 Herd of Models》第 2–3 节；FineWeb 数据集博客（HuggingFace，数据清洗的现代标准流程）。
 - **误区**：「数据越多越好」——去重和质量过滤常常删掉 90%+；「loss 越低模型越好」——不同数据分布的 loss 不可比。
