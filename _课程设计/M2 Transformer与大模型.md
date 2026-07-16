@@ -17,7 +17,7 @@ tags:
 - **内容要点**：
   1. **tokenization**：字符级/词级的缺陷 → 子词方案 **BPE**（合并高频对的直觉演示，用「unhappiness → un+happiness」类例子）；**vocabulary** 与 vocab size 的量级（32K–256K）。
   2. 中英文差异：1 英文词 ≈ 1.3 token、1 汉字 ≈ 0.5–1 token（tokenizer 相关）；「按 token 计费」的 API 经济学。
-  3. **embedding**：token id → 查表得 $d$ 维向量；embedding matrix 形状 $V \times d$；「语义即几何」一段直觉（相似词向量相近）——顺带预告 RAG 里的 embedding model（L68）。
+  3. **embedding**：token id → 查表得 $d$ 维向量；embedding matrix 形状 $V \times d$；「语义即几何」一段直觉（相似词向量相近）——顺带预告 RAG 里的 embedding model（L70）。
   4. **context window**：模型一次能处理的 token 上限；它不是硬件常数而是训练决定的（细节 L18）；8K/128K/1M 的量级感。
   5. 特殊 token：BOS/EOS/PAD、chat template 一句话（system/user/assistant 标记）。
   6. 系统接口：tokens/s 作为训练与推理吞吐的通用单位；tokenizer 在数据管线中的位置（预处理离线做，L34）。
@@ -61,7 +61,7 @@ tags:
   6. 主任务：Llama-3-8B config.json 逐字段（hidden_size=4096, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, intermediate_size=14336, vocab_size=128256, …）→ 手算参数量（见定量环节）。GQA 字段此处只说「KV 头更少，L18 细讲」。
   7. dense vs MoE 预告（L17）；encoder-only（BERT）/decoder-only（GPT）/encoder-decoder（T5）三家族一段话收尾。
 - **必收术语**：Transformer block/layer、decoder-only、FFN/MLP block、up/down/gate projection、SwiGLU、LayerNorm、RMSNorm、pre-norm、residual stream、positional encoding、RoPE、lm_head、weight tying、config.json、hidden size、intermediate size、num_layers、model card、dense model。
-- **定量环节**（本课灵魂，务必完整呈现）：Llama-3-8B 参数手算：embedding 128256×4096≈0.525B；每层 attention（GQA）：$W_Q$ 4096²+$W_K$,$W_V$ 各 4096×1024+$W_O$ 4096² ≈ 41.9M；每层 FFN：3×4096×14336 ≈ 176.2M；单层合计 ≈ 218M ×32 层 ≈ 6.98B；+ lm_head 0.525B + norm 零头 → **≈ 8.03B** ✅。附「参数分布饼图」：FFN 65% / attention 15% / embedding+lm_head 13%。
+- **定量环节**（本课灵魂，务必完整呈现）：Llama-3-8B 参数手算：embedding 128256×4096≈0.525B；每层 attention（GQA）：$W_Q$ 4096²+$W_K$,$W_V$ 各 4096×1024+$W_O$ 4096² ≈ 41.9M；每层 FFN：3×4096×14336 ≈ 176.2M；单层合计 ≈ 218M ×32 层 ≈ 6.98B；+ lm_head 0.525B + norm 零头 → **≈ 8.03B** ✅。附「参数分布饼图」（按本页数字自洽）：FFN ≈70%（5.64B）/ attention ≈17%（1.34B）/ embedding+lm_head ≈13%（1.05B）。
 - **图示**：① decoder block 数据流图（本课程被引用最多的一张图，画精细）；② 参数分布饼图/条形图。
 - **延伸阅读**：Llama 3 技术报告《The Llama 3 Herd of Models》第 3 节（结构表）；HuggingFace 上任一模型的 config.json（布置作业：算 Qwen 某个尺寸）。
 - **误区**：「参数大头在 attention」——在 FFN；「7B/8B 是精确值」——是四舍五入的营销数，手算会差零头；「层数越深越强」——宽深比是权衡（一句话即可）。
@@ -99,7 +99,7 @@ tags:
   5. workload 画像（给后续模块的接口）：数万卡 × 数月、纯吞吐导向、全同步步调（每 step 全局同步一次梯度——这就是 M5/M6 的主角场景）、失败重来代价巨大（M7 的主角场景）。
   6. 案例串讲：以 Llama-3 405B 为例过一遍（15.6T token、~16K H100、54 天量级、GBS/上下文分阶段——数字以报告为准，标注「见原文」）。
 - **必收术语**：pretraining、corpus、CommonCrawl、data cleaning/filtering、deduplication、data mixture、data curriculum、annealing、shard、held-out/validation loss、benchmark、MMLU（认名即可）、contamination、base model、training run、loss spike、token budget。
-- **定量环节**：数据存储账：15T token ≈ 30 TB（2B/token 存 token id）+ 原始网页数 PB 量级；再算一天吞吐：16K 卡 × 400 TFLOPS 有效 ÷ (6×405B) ≈ 2.3×10⁹ token/天？——期望实现者按 6ND 完整算出「天数×卡数」与报告对齐（结果 ~50–70 天量级即算对）。
+- **定量环节**：数据存储账：15T token ≈ 30 TB（2B/token 存 token id）+ 原始网页数 PB 量级；再算一天吞吐：16384 卡 × 400 TFLOPS 有效 ÷（6×405×10⁹ FLOPs/token）≈ 2.7×10⁶ token/s ≈ **2.3×10¹¹ token/天**；15.6T ÷ 2.3×10¹¹ ≈ 68 天——与公开的「~54 天主训练」同数量级即算对（有效算力假设不同会差一截，要求实现者把假设写明）。
 - **图示**：① 数据管线漏斗图（原始 PB → 清洗后 XX TB → 15T token）；② 典型 loss 曲线（标注 spike、annealing 阶段）。
 - **延伸阅读**：《The Llama 3 Herd of Models》第 2–3 节；FineWeb 数据集博客（HuggingFace，数据清洗的现代标准流程）。
 - **误区**：「数据越多越好」——去重和质量过滤常常删掉 90%+；「loss 越低模型越好」——不同数据分布的 loss 不可比。
@@ -174,7 +174,7 @@ tags:
   5. 长上下文工程：**RoPE scaling/YaRN**（一句话：位置编码外推）+ 长上下文继续训练；context window 的商业竞赛（128K→1M）与真实能力（**needle-in-a-haystack** 测试一句话）。
   6. 换血路线：**linear attention / SSM / Mamba**（状态空间：把历史压缩成固定大小状态 → decode O(1) 显存）；**hybrid 架构**（若干层 attention + 若干层 SSM）；一句话评价：截至 2026 主流 frontier 仍是 Transformer，但 hybrid 在推理成本上的优势让它持续升温。
 - **必收术语**：MQA、GQA、num_key_value_heads、MLA、latent/low-rank compression、sliding window attention、attention sink、RoPE scaling、YaRN（认名）、long context、needle-in-a-haystack、FlashAttention（预告级）、linear attention、state space model（SSM）、Mamba、hybrid architecture、KV cache compression。
-- **定量环节**：同一设定（70B 级、S=128K、batch=8）下算四种 KV cache：MHA ≈ 336 GB / GQA(8组) ≈ 42 GB / MQA ≈ 5.3 GB / MLA（按 DeepSeek 压缩比，数字**须核实**技术报告，给量级）——一张表看懂「结构选择 = 显存预算」。
+- **定量环节**：同一设定（Llama-3-70B：L=80、64 头/d_head=128，S=128K，**batch=1 即单请求**）下算四种 KV cache：MHA ≈ 344 GB / GQA(8 组) ≈ 43 GB / MQA ≈ 5.4 GB / MLA（按 DeepSeek 压缩比，数字**须核实**技术报告，给量级）；再标注 batch=8 时全部 ×8（MHA 达 ~2.75 TB）——一张表看懂「结构选择 = 显存预算」。
 - **图示**：① MHA/MQA/GQA/MLA 四联图（KV 头共享关系，经典图式）；② sliding window 可视范围示意。
 - **延伸阅读**：GQA 论文《GQA: Training Generalized Multi-Query Transformer Models…》（EMNLP 2023）；DeepSeek-V2 技术报告（MLA 出处，看图即可）；Mamba 论文（选读，看 abstract 与图 1）。
 - **误区**：「FlashAttention 是近似注意力」——它是 exact 的，省的是显存读写；「GQA 掉精度很多」——恰当训练下损失很小，是免费午餐级 tradeoff；「context window 越长越好用」——注意「lost in the middle」与成本。

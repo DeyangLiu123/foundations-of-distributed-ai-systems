@@ -73,7 +73,7 @@ tags:
 - **内容要点**：
   1. 两个上限：算力屋顶（peak FLOPS）与带宽斜坡（bandwidth × AI）；**arithmetic intensity（AI）= FLOPs ÷ 访存字节数**；**ridge point** = 峰值算力/带宽——H100 BF16：989T/3.35T ≈ **295 FLOPs/Byte**（记住这个数）。
   2. roofline 图的画法与读法：横轴 AI（对数）、纵轴可达 FLOPS；算子落点在斜坡上 = **memory-bound**，在屋顶下 = **compute-bound**。
-  3. 三个标本算 AI：① 逐元素加法（AI≈0.08，深度 memory-bound）；② 方 GEMM n×n×n：AI≈n/3（BF16）→ n=4096 时 ~1365，compute-bound；③ 瘦 GEMM（decode 的 [1,d]×[d,d]）：AI≈1 → 惨烈 memory-bound。**batch 是 AI 的放大器**：[B,d]×[d,d] 的 AI≈B（B 不大时）→「攒 batch = 把算子往屋顶推」——M8 的调度哲学全在这句话里。
+  3. 三个标本算 AI：① 逐元素加法（BF16 口径：2 读 1 写 = 6 字节换 1 FLOP → AI≈0.17；FP32 口径则 ≈0.08——注明 dtype，深度 memory-bound）；② 方 GEMM n×n×n：AI≈n/3（BF16）→ n=4096 时 ~1365，compute-bound；③ 瘦 GEMM（decode 的 [1,d]×[d,d]）：AI≈1 → 惨烈 memory-bound。**batch 是 AI 的放大器**：[B,d]×[d,d] 的 AI≈B（B 不大时）→「攒 batch = 把算子往屋顶推」——M8 的调度哲学全在这句话里。
   4. 用 roofline 秒答四问：decode 为什么慢（AI≈1）；kernel fusion 为什么有效（省中间读写 → 提 AI，L51）；权重量化为什么加速 decode（分母字节减半 → AI 翻倍，L58）；投机解码为什么有利可图（把串行 decode 变成并行 verify → 提 AI，L59）。每问两三句，埋链接。
   5. 局限一句话：roofline 是上限模型，没算 launch 开销、依赖链、通信——真实系统还要看 profiler（L52）。
 - **必收术语**：roofline model、arithmetic intensity（operational intensity）、ridge point、compute-bound、memory-bound、bandwidth-bound、data reuse、operator/op、elementwise operation、fused kernel（预告）。
@@ -111,12 +111,12 @@ tags:
   1. 一台典型 H100 节点解剖（本课主图）：2×CPU、8×GPU、4×NVSwitch、8×400G NIC（每 GPU 一张，**rail** 概念此处首次埋点）、PCIe switch 树、NUMA 域。
   2. **PCIe**：树状、CPU 为根；世代带宽（03 表）；GPU 间走 PCIe 要过 CPU/switch 的代价；**GPUDirect P2P**（GPU 互访显存不经主机内存）。
   3. **NVLink/NVSwitch**：点对点 vs 交换式；世代带宽（03 表：H100 900 GB/s 双向合计）；8 卡经 NVSwitch 全互联 = **all-to-all 无阻塞**；NVLink 上跑的是显存语义（load/store/copy），不是网络包——一句话点破「它更像内存总线」。
-  4. 数量级对比（本课灵魂）：HBM 3350 ≫ NVLink 单向 450 ≫ 网卡 50 ≫ PCIe→主机 64（GB/s，H100 口径）——**每跨一级掉一个量级**；由此推出通信密集的并行（TP）只能生活在 NVLink 域内（L43 将定量回收）。
+  4. 数量级对比（本课灵魂）：HBM 3350 ≫ NVLink 单向 450 ≫ PCIe Gen5 单向 ~64 ≈ 网卡 50（GB/s，H100 口径）——HBM→NVLink→PCIe **每级掉约一个量级**，PCIe 与网卡同级；由此推出通信密集的并行（TP）只能生活在 NVLink 域内（L43 将定量回收）。
   5. **scale-up domain 的扩张**：GB200 **NVL72**——72 GPU 用 NVLink 连成一柜（NVLink5 1.8 TB/s，NVSwitch tray），「机柜即节点」；对并行策略的含义一句话（TP/EP 可以到 72 了）；提名 **UALink**（开放阵营的 scale-up 标准）与 NVLink Fusion 动向（标注「快速演化区」）。
   6. NUMA/affinity 实务一句话：GPU-NIC-CPU 亲和性对性能的影响（预埋 L38 的 PXN 与 L52 的排障）。
 - **必收术语**：PCIe、PCIe switch、NVLink、NVSwitch、bidirectional bandwidth、GPUDirect P2P、NUMA、CPU affinity、DGX/HGX、scale-up vs scale-out（正式定义）、NVLink domain、NVL72、rail（预告）、UALink（提名）、D2D/die-to-die（提名）。
 - **定量环节**：搬 16 GB（8B 模型 BF16 权重）各通道耗时：HBM 内 4.8 ms / NVLink 36 ms / 400G 网卡 320 ms / PCIe Gen5 250 ms——一张表建立「数据住在哪」的成本直觉。再算 NVL72 域内 all-to-all 对分带宽与 8 卡节点对比。
-- **图示**：① 8 卡 HGX 节点拓扑图（本课主图，M4/M5/M6 反复引用）；② 「带宽悬崖」阶梯图（HBM→NVLink→NIC→PCIe）。
+- **图示**：① 8 卡 HGX 节点拓扑图（本课主图，M4/M5/M6 反复引用）；② 「带宽悬崖」阶梯图（HBM→NVLink→PCIe/NIC，后两级同量级）。
 - **延伸阅读**：NVIDIA DGX H100/GB200 NVL72 官方架构页；《How to Scale Your Model》（jax-ml scaling book）的 hardware 章（TPU 视角对照）。
 - **误区**：「NVLink 是更快的以太网」——是内存语义互联，走的软件栈完全不同；「8 卡 = 8 倍算力」——通信和显存墙决定了远非线性；PCIe 双向/单向数字混用（回收 03 的口径警告）。
 
