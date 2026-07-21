@@ -1,26 +1,23 @@
 filters:
   and:
-    - 'lesson != null'
-    - 'file.ext == "md"'
-
+    - lesson != null
+    - file.ext == "md"
 formulas:
-  terms_count: 'if(terms, terms.length, 0)'
-
+  terms_count: if(terms, terms.length, 0)
 properties:
   lesson:
-    displayName: "编号"
+    displayName: 编号
   file.name:
-    displayName: "课程"
+    displayName: 课程
   status:
-    displayName: "状态"
+    displayName: 状态
   date:
-    displayName: "完成日期"
+    displayName: 完成日期
   formula.terms_count:
-    displayName: "术语数"
-
+    displayName: 术语数
 views:
   - type: table
-    name: "全部课程"
+    name: 全部课程
     groupBy:
       property: module
       direction: ASC
@@ -32,9 +29,8 @@ views:
       - formula.terms_count
     summaries:
       formula.terms_count: Sum
-
   - type: cards
-    name: "卡片视图"
+    name: 卡片视图
     order:
       - file.name
       - lesson
