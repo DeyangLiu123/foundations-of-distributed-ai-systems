@@ -1,6 +1,7 @@
 .DS_Store
 .trash/
 *.tmp
+__pycache__/
 # 若将来把本目录单独作为 vault 打开
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json

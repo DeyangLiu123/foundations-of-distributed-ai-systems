@@ -1,0 +1,6 @@
+# Course content must be reviewed by the repository maintainer.
+# Update this handle if the repository is transferred to another account.
+*.md @DeyangLiu123
+*.base @DeyangLiu123
+scripts/ @DeyangLiu123
+.github/ @DeyangLiu123

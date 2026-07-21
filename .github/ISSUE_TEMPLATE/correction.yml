@@ -1,0 +1,44 @@
+name: 课程勘误或局部优化
+description: 报告已发布课程中的可核验问题，或提出小范围改进建议。
+title: "[勘误] "
+labels:
+  - correction
+body:
+  - type: input
+    id: lesson
+    attributes:
+      label: 受影响课程
+      description: 例如 L07 训练循环解剖。
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: 类型
+      options:
+        - 事实或数字勘误
+        - 公式或单位勘误
+        - 术语或翻译一致性
+        - 引用或链接修复
+        - 局部解释、图示或代码优化
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 具体问题与建议改动
+      description: 请指出段落、公式、表格或代码位置，并给出最小修订建议。
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: 可核验来源
+      description: 提供原始论文、官方文档、标准或一手数据链接，并说明相关章节。
+    validations:
+      required: true
+  - type: textarea
+    id: ai
+    attributes:
+      label: AI 使用披露（可选）
+      description: 如使用 AI 协助检索或措辞，请说明工具和人工核验范围。
