@@ -118,9 +118,9 @@ $$
 
 ```mermaid
 flowchart TB
-    ID["一个 token ID<br/>i"] --> OH["one-hot e_i<br/>长度 V，只有第 i 位为 1"]
-    OH --> MULT["概念上的矩阵乘<br/>e_i^T W_E"]
-    MAT["embedding matrix W_E<br/>[V, d]"] --> MULT
+    ID["一个 token ID<br/>i"] --> OH["one-hot eᵢ<br/>长度 V，只有第 i 位为 1"]
+    OH --> MULT["概念上的矩阵乘<br/>eᵢᵀ Wₑ"]
+    MAT["embedding matrix Wₑ<br/>[V, d]"] --> MULT
     MULT --> ROW["第 i 行向量<br/>[ d ]"]
     ID --> LOOKUP["实际实现：直接 lookup<br/>不乘一大串 0"]
     MAT --> LOOKUP
