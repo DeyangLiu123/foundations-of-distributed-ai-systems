@@ -74,13 +74,13 @@ flowchart LR
     UNIT --> COUNT["统计相邻符号对频率"]
     COUNT --> MERGE["合并一个高频对"]
     MERGE --> REPEAT["重复多轮"]
-    REPEAT --> VOCAB["vocabulary\n词表 + 合并规则"]
-    TEXT["你好，世界\n原始文本"] --> TOK["tokenizer\n切分并查词表"]
+    REPEAT --> VOCAB["vocabulary<br/>词表 + 合并规则"]
+    TEXT["你好，世界<br/>原始文本"] --> TOK["tokenizer<br/>切分并查词表"]
     VOCAB --> TOK
-    TOK --> IDS["token IDs\n[id_1, id_2, ..., id_S]"]
-    IDS --> LOOKUP["embedding lookup\n逐 ID 查表"]
-    LOOKUP --> VECS["向量序列\n[S, d]"]
-    VECS --> MODEL["Transformer\n[[L11 注意力机制]]"]
+    TOK --> IDS["token IDs<br/>[id_1, id_2, ..., id_S]"]
+    IDS --> LOOKUP["embedding lookup<br/>逐 ID 查表"]
+    LOOKUP --> VECS["向量序列<br/>[S, d]"]
+    VECS --> MODEL["Transformer<br/>[[L11 注意力机制]]"]
 ```
 
 例如，在一个玩具 BPE 词表里，`unhappiness` 可以被表示为 `un` 加 `happiness` 这样的两个片段；这样 `un-` 又能复用于 `unhappy`、`unfair` 等词。==这只是合并直觉，不是对任何具体模型的实际切分承诺。==真实 tokenizer 还可能从 byte 或其他基本单位开始，并带有规范化等规则；要知道某段文本究竟被切成什么，必须用目标模型的 tokenizer 实测。
@@ -118,11 +118,11 @@ $$
 
 ```mermaid
 flowchart TB
-    ID["一个 token ID\ni"] --> OH["one-hot e_i\n长度 V，只有第 i 位为 1"]
-    OH --> MULT["概念上的矩阵乘\ne_i^T W_E"]
-    MAT["embedding matrix W_E\n[V, d]"] --> MULT
-    MULT --> ROW["第 i 行向量\n[ d ]"]
-    ID --> LOOKUP["实际实现：直接 lookup\n不乘一大串 0"]
+    ID["一个 token ID<br/>i"] --> OH["one-hot e_i<br/>长度 V，只有第 i 位为 1"]
+    OH --> MULT["概念上的矩阵乘<br/>e_i^T W_E"]
+    MAT["embedding matrix W_E<br/>[V, d]"] --> MULT
+    MULT --> ROW["第 i 行向量<br/>[ d ]"]
+    ID --> LOOKUP["实际实现：直接 lookup<br/>不乘一大串 0"]
     MAT --> LOOKUP
     LOOKUP --> ROW
 ```
