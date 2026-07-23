@@ -83,7 +83,7 @@ flowchart LR
     VECS --> MODEL["Transformer<br/>[[L11 注意力机制]]"]
 ```
 
-例如，在一个玩具 BPE 词表里，`unhappiness` 可以被表示为 `un` 加 `happiness` 这样的两个片段；这样 `un-` 又能复用于 `unhappy`、`unfair` 等词。==这只是合并直觉，不是对任何具体模型的实际切分承诺。==真实 tokenizer 还可能从 byte 或其他基本单位开始，并带有规范化等规则；要知道某段文本究竟被切成什么，必须用目标模型的 tokenizer 实测。
+举一个只为说明原理而简化的例子：假设某个 BPE 词表中已有 `un` 和 `happiness` 两个片段，`unhappiness` 就可以由它们组成；这样 `un-` 又能复用于 `unhappy`、`unfair` 等词。==这只是帮助理解“合并和复用”的简化示例，不代表任何具体模型会这样切分。==真实 tokenizer 还可能从 byte 或其他基本单位开始，并带有规范化等规则；要知道某段文本究竟被切成什么，必须用目标模型的 tokenizer 实测。
 
 ### 词表就是 ID 的字典
 
