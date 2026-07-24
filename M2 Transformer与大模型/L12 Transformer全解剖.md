@@ -41,7 +41,7 @@ tags:
 > 读完你将能够：
 > 1. 默画一层 decoder block 的完整数据流，说出 RMSNorm、残差、FFN 各自的作用；
 > 2. 解释 SwiGLU、RoPE、pre-norm、weight tying 各自解决什么问题；
-> 3. 拿到任意 dense LLM 的 config.json，逐字段读懂，并据此手算模型参数量；
+> 3. 拿到 Llama / Qwen2 一类现代 decoder-only 架构的 config.json，逐字段读懂，并据此手算模型参数量；
 > 4. 独立复算 Llama-3-8B 的 8.03B 参数，说出 FFN / attention / embedding 各占多少。
 >
 > 前置：[[L11 注意力机制]] · 预计 45 分钟
@@ -51,7 +51,7 @@ tags:
 > [!quote]
 > We train a standard decoder-only Transformer with 32 layers and a hidden size of 4096. Each block uses pre-normalization with RMSNorm, grouped-query attention with rotary positional embeddings (RoPE), and a SwiGLU feed-forward network with intermediate size 14336. We do not share weights between the embedding layer and the lm_head, for a total of 8.03B trainable parameters.
 >
-> （改写自典型表述，参照《The Llama 3 Herd of Models》结构描述的风格）
+> （改写自典型表述，参照[《The Llama 3 Herd of Models》](https://arxiv.org/abs/2407.21783)（arXiv，2024）的结构描述风格）
 
 这段话几乎不含数学，却把一整个模型的结构说完了：**decoder-only**、**RMSNorm**、**pre-norm**、**SwiGLU**、**RoPE**、**lm_head**、weight sharing……每个词都是本课要拆的零件。读完本课，你回头看这段话，应该能把它直接翻译成一张参数表。
 
@@ -86,7 +86,7 @@ $$
 x \leftarrow x + \operatorname{Sublayer}\big(\operatorname{Norm}(x)\big)
 $$
 
-注意 Norm 在子层**之前**，残差相加用的是 Norm 之前的 $x$。这个顺序叫 **pre-norm**（前置归一化）；最早的 Transformer 论文把 Norm 放在子层之后（post-norm）。**现代 LLM 全部是 pre-norm**——残差主干保持「干净」，深层堆叠时梯度更稳，训练几乎不用精心调 warmup 就能起来（warmup 见 [[L06 优化器]]）。
+注意 Norm 在子层**之前**，残差相加用的是 Norm 之前的 $x$。这个顺序叫 **pre-norm**（前置归一化）；最早的 Transformer 论文把 Norm 放在子层之后（post-norm）。==多数现代 decoder-only LLM 采用 pre-norm==（Llama、Qwen 等开源实现均如此）——残差主干保持「干净」，深层堆叠时梯度更稳。但「更稳」不等于「免调」：warmup 仍是标准训练配方（见 [[L06 优化器]]），pre-norm 替代不了它。
 
 这条贯穿 32 层、被各子层反复「读取—加工—写回」的主干，有个专门的名字：**residual stream**（残差流）。residual connection 本身是 [[L08 CNN与RNN简史]] 里 ResNet 的老发明——梯度高速公路；在 Transformer 里它升级成了一种世界观：
 
@@ -134,7 +134,7 @@ FFN 的中间维度叫 **intermediate size**，记 $d_{ff}$。因为 SwiGLU 有�
 
 ## 四、RoPE：把「顺序」旋进向量里
 
-还有一个隐蔽的问题：attention 本身**不知道 token 的顺序**。$QK^T$ 的打分集合在 token 乱序后不变——「狗咬人」和「人咬狗」对它一样。必须显式注入位置信息，这类方法统称 **positional encoding**（位置编码）。
+还有一个隐蔽的问题：attention 本身没有位置坐标。若暂不考虑 causal mask，也不加入位置编码，把输入 token 按置换矩阵 $P$ 重排，score matrix 会从 $QK^T$ 变成 $P(QK^T)P^T$，输出也只会跟着同样重排——这叫 **permutation equivariance**（置换等变性）。换句话说，机制能匹配「谁和谁相关」，却辨认不出它们原本是第几个位置。decoder 中的 causal mask 只规定「当前位置不能看未来」，仍不能表达精确的相对距离。因此还必须显式注入位置信息，这类方法统称 **positional encoding**（位置编码）。
 
 最早的方案是**绝对位置编码**：给每个位置学一个 $d$ 维向量，直接加到 embedding 上——相当于给每个 token 盖一个「我在第 3 位」的水印。现代 LLM 的标配是 **RoPE**（rotary positional embedding，旋转位置编码），思路完全不同：不加水印，改**旋转**。
 
@@ -156,7 +156,7 @@ FFN 的中间维度叫 **intermediate size**，记 $d_{ff}$。因为 SwiGLU 有�
 
 ## 六、读懂 config.json：模型的体检表
 
-以上每个结构选择，都会原样写进模型仓库里的 **config.json**——一个记录全部结构超参数的 JSON 文件。它和 README（用途、训练数据、评测结果）一起构成模型的 **model card**（模型卡）：你在 HuggingFace 上点开任何一个模型页，先读的就是这两样。读 config.json 是系统方向的基本功：==参数量、显存、并行切分方式，全部从这几个字段推出来==。
+多数关键结构超参数会写进模型仓库里的 **config.json**。模型仓库的 README.md 及其元数据才是 **model card**（模型卡），负责说明用途、训练与评测信息；它与 config.json 是两个文件。你在 HuggingFace 上点开模型页时，两者都应先读：config 给出尺寸，model card 交代口径与限制。读 config.json 是系统方向的基本功，但字段只给出线索；==参数量、显存和并行切分方式还要结合 `model_type`、`architectures` 及具体实现判断==。
 
 下面是 Llama-3-8B 的 config.json（节选关键字段，与 [[03 约定与符号]] 参考模型表口径一致）：
 
@@ -188,10 +188,10 @@ FFN 的中间维度叫 **intermediate size**，记 $d_{ff}$。因为 SwiGLU 有�
 | `num_key_value_heads` | 8 | KV 头数 $h_{kv}$：每 4 个 Q 头共享 1 组 K/V（GQA，这里只需知道「KV 头更少」，细节见 [[L18 注意力变体与长上下文]]） |
 | `intermediate_size` | 14336 | FFN 中间维度 $d_{ff}=3.5d$ |
 | `vocab_size` | 128256 | 词表大小 $V$（[[L10 Token与嵌入]]） |
-| `max_position_embeddings` | 8192 | 训练时见过的最长序列，即 8K context window |
+| `max_position_embeddings` | 8192 | 配置允许的位置索引上限，即名义上的 8K context window；不等于训练数据中实际见过的最长序列，后者需查 model card 或技术报告 |
 | `rope_theta` | 500000 | RoPE 的旋转基数 |
 | `rms_norm_eps` | 1e-05 | RMSNorm 公式里的 $\epsilon$ |
-| `hidden_act` | silu | FFN 门控用 SiLU，即 SwiGLU |
+| `hidden_act` | silu | 激活函数为 SiLU；本例结合 `LlamaForCausalLM` 的 gate/up/down 实现构成 SwiGLU，不能只凭这个字段判断 FFN 是否带门控 |
 | `tie_word_embeddings` | false | embedding 与 lm_head 不做 weight tying |
 | `torch_dtype` | bfloat16 | 权重以 BF16 存储（2 B/参数，[[03 约定与符号]]） |
 
@@ -243,7 +243,11 @@ FFN 的中间维度叫 **intermediate size**，记 $d_{ff}$。因为 SwiGLU 有�
 > **总计**：
 >
 > $$
-> \underbrace{0.525}_{emb}+\underbrace{6.980}_{32\text{ 层}}+\underbrace{0.525}_{lm\_head}+\underbrace{0.0003}_{norms}\approx 8{,}030{,}261{,}248\approx\boxed{8.03\text{ B}}
+> \underbrace{525{,}336{,}576}_{emb}
+> +\underbrace{6{,}979{,}584{,}000}_{32\text{ 层，已含层内 Norm}}
+> +\underbrace{525{,}336{,}576}_{lm\_head}
+> +\underbrace{4{,}096}_{\text{最终 RMSNorm}}
+> =8{,}030{,}261{,}248\approx\boxed{8.03\text{ B}}
 > $$
 >
 > 与官方标称的「8B」对上——==7B/8B/70B 都是四舍五入后的营销数，手算出的才是精确值==。
@@ -284,7 +288,7 @@ Llama-3-8B 还是一个 **dense model**（稠密模型）：每个 token 进来�
 2. **“Each block uses pre-normalization with RMSNorm, grouped-query attention with rotary positional embeddings (RoPE), and a SwiGLU feed-forward network with intermediate size 14336.”** pre-norm = Norm 在子层前（第一节）；RMSNorm = 去掉均值中心化的 LayerNorm（第二节）；RoPE = 把相对位置旋进 Q/K（第四节）；SwiGLU FFN = gate/up/down 三个矩阵，$d_{ff}=14336=3.5d$（第三节）。
 3. **“We do not share weights between the embedding layer and the lm_head, for a total of 8.03B trainable parameters.”** 不做 weight tying，所以词表付两份钱（第五节）；8.03B 不是宣传数字，是你在第七节亲手算出来的。
 
-以后在论文里看到任何一张结构表或 config，你都能重复同样的动作：读字段 → 推形状 → 算参数 → 换显存。
+以后在论文里看到 Llama / Qwen2 一类结构表或 config，你都能重复同样的动作：先用 `model_type` 确认架构，再读字段 → 推形状 → 算参数 → 换显存。遇到其他架构，也沿用这套审计方法，但矩阵数量、bias、位置 embedding 和权重共享方式必须按实现调整。
 
 ## 术语卡片
 
@@ -309,7 +313,7 @@ Llama-3-8B 还是一个 **dense model**（稠密模型）：每个 token 进来�
 | hidden size | 隐层宽度 | 残差流/隐表示的维度 $d$（Llama-3-8B 为 4096）。 |
 | intermediate size | FFN 中间维度 | FFN 内部扩展维度 $d_{ff}$（Llama-3-8B 为 14336 = 3.5$d$）。 |
 | num_layers | 层数 | Transformer block 的堆叠数 $L$，config 中常写作 num_hidden_layers。 |
-| model card | 模型卡 | 模型仓库附带的说明文档与 config，读模型的第一站。 |
+| model card | 模型卡 | 模型仓库的 README.md 及其元数据，记录用途、训练与评测信息；与 config.json 是两个文件。 |
 | dense model | 稠密模型 | 每个 token 激活全部参数的模型；与 MoE 相对。 |
 
 ## 自测
@@ -320,21 +324,21 @@ Llama-3-8B 还是一个 **dense model**（稠密模型）：每个 token 进来�
 4. 写出 SwiGLU FFN 的三个矩阵名与各自的形状（用 $d$ 和 $d_{ff}$ 表示）。
 5. Llama-3-8B 若改为 weight tying，参数量大约变化多少？占原参数的百分之几？
 6. （计算题）Qwen2.5-7B 的 config.json 给出：hidden_size=3584、num_hidden_layers=28、num_attention_heads=28、num_key_value_heads=4、intermediate_size=18944、vocab_size=152064、tie_word_embeddings=false。忽略 bias 与 norm 零头，手算其参数量（字段值可到 HuggingFace 的 Qwen/Qwen2.5-7B 仓库自行核对）。
-7. （开放题）为什么说「config.json + 本课公式」就能审计任何 dense LLM 的模型卡？找一个你关心的模型，验证它标称的参数量。
+7. （开放题）为什么本课公式只可直接套用于 Llama / Qwen2 一类架构？遇到其他 dense LLM，应先从 config 和实现中核对哪些结构差异？找一个你关心的模型，验证它标称的参数量。
 
 > [!note]- 参考答案
 > 1. $x\to$ RMSNorm $\to$ attention $\to$ 与**未归一化的** $x$ 相加；再 RMSNorm $\to$ FFN $\to$ 再与上一次残差相加的结果相加。残差用的是 Norm 之前的输入，这就是 pre-norm 的定义。
 > 2. 省了均值中心化这一步计算和 $\beta$ 参数；单看每层省得极少（$d$ 量级），但归一化在每个 token、每层、每次前向反向都要跑，乘上万亿 token 就是实打实的 kernel 时间；且实测效果不降，何乐而不为。
-> 3. $QK^T$ 的打分集合对 token 乱序不变。RoPE 把 Q/K 的维度对按位置旋转不同角度，使点积只依赖相对距离；纯几何操作，增加 0 个参数。
+> 3. 不带位置编码、暂不考虑 causal mask 时，重排输入会让 score matrix 的行列和 attention 输出同步重排，这叫置换等变；机制本身没有位置坐标。causal mask 只限制能否看未来，不能给出精确相对距离。RoPE 把 Q/K 的维度对按位置旋转不同角度，使点积显式依赖相对距离；纯几何操作，增加 0 个可训练参数。
 > 4. $W_{gate}\in\mathbb{R}^{d\times d_{ff}}$、$W_{up}\in\mathbb{R}^{d\times d_{ff}}$、$W_{down}\in\mathbb{R}^{d_{ff}\times d}$。
 > 5. 省掉一份 $V\times d=128256\times4096\approx0.525$ B，参数从 8.03B 降到约 7.50B，减少约 6.5%。
 > 6. $d_{head}=3584/28=128$，KV 宽 $=4\times128=512$。每层 attention $=2\times3584^2+2\times3584\times512=29{,}360{,}128$；每层 FFN $=3\times3584\times18944=203{,}685{,}888$；单层 $\approx233.0$ M，×28 层 $\approx6.525$ B。embedding 与 lm_head 不共享：$2\times152064\times3584\approx1.090$ B。合计 $\approx7.62$ B，与官方标称口径一致。
-> 7. 因为 dense LLM 的参数完全由 config 中少数几个字段决定：$V\times d$（×1 或 ×2 取决于 tying）+ $L\times[$ attention 四投影 + $3d\times d_{ff}]$ + norm 零头。代入字段复算，若与模型卡标称值同数量级吻合，说明结构描述自洽；差得远则说明标称口径不同（如是否含 embedding、bias、共享权重），值得追问。
+> 7. 本课公式假设 GQA/MHA 投影、SwiGLU 三矩阵 FFN、RMSNorm 和 Llama 式输出端，因此可直接用于 Llama / Qwen2 一类架构。其他 dense LLM 可能使用两矩阵 FFN、learned position embedding、额外 bias、不同 Norm 数量或共享权重；应先根据 `model_type`、`architectures` 和实现列出实际矩阵，再代入 config 字段。方法可以迁移，公式不能不加检查地照搬。
 
 ## 延伸阅读
 
-- 《The Llama 3 Herd of Models》第 3 节：官方结构表与训练设置，对照本课第六节的 config.json 逐字段读，确认每个数字你都认识。
-- HuggingFace 上任一模型的 config.json（如 Qwen/Qwen2.5-7B）：完成作业——用本课公式手算参数量，与模型卡标称值对比；这是把本课变成肌肉记忆的最短路径。
+- [《The Llama 3 Herd of Models》](https://arxiv.org/abs/2407.21783)（arXiv，2024）第 3 节：官方结构表与训练设置，对照本课第六节的 config.json 逐字段读，确认每个数字你都认识。
+- HuggingFace 上与本课结构相同的模型 config.json（如 Qwen/Qwen2.5-7B）：先确认 `model_type` 与 FFN 实现，再用本课公式手算参数量并与 model card 标称值对比。
 
 ---
 上一课：[[L11 注意力机制]] ← · → 下一课：[[L13 自回归生成与KV缓存]]
