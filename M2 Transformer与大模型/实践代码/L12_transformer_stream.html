@@ -88,21 +88,29 @@
     .legend .loss::before { background: var(--loss); }
 
     .stream-shell { overflow: hidden; }
-    .rail-wrap { overflow-x: auto; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-    .rail { display: grid; grid-template-columns: repeat(6, minmax(236px, 1fr)); width: max(100%, 1480px); min-width: 1480px; padding: 12px 16px 10px; gap: 12px; }
-    .rail-item { position: relative; min-height: 42px; padding: 7px 10px; border-left: 3px solid var(--primary); color: var(--primary-strong); font-size: 12px; font-weight: 700; }
-    .rail-item::after { content: "→"; position: absolute; right: -19px; top: 8px; color: var(--primary); font-family: var(--mono); font-size: 18px; }
-    .rail-item:last-child::after { display: none; }
-    .rail-item small { display: block; margin-top: 3px; color: var(--muted); font-weight: 400; }
-    .board-viewport { overflow-x: auto; overflow-y: hidden; padding: 16px; }
-    .board { display: grid; grid-template-columns: repeat(6, 236px); gap: 12px; min-width: 1480px; align-items: start; }
-    .stage { min-width: 0; }
-    .stage-header { min-height: 69px; margin-bottom: 8px; padding: 11px 12px; border-radius: 11px; background: var(--surface-2); border-top: 3px solid var(--primary); }
-    .stage-header small { color: var(--muted); font-family: var(--mono); }
-    .stage-header h2 { margin: 4px 0 2px; font-size: 16px; }
-    .stage-header p { margin: 0; color: var(--muted); font-size: 11px; }
-    .cards { display: grid; gap: 8px; }
-    .matrix-card { width: 100%; padding: 9px; border: 1px solid var(--border); border-left: 4px solid var(--activation); border-radius: 11px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 3px 9px rgba(25, 40, 29, 0.05); transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease; }
+    .dag-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 14px; padding: 10px 13px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+    .dag-toolbar strong { font-size: 12px; }
+    .dag-toolbar small { color: var(--muted); }
+    .zoom-control { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .zoom-control input { width: 150px; }
+    .zoom-value { min-width: 40px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .stage-jump { display: flex; align-items: center; gap: 7px; }
+    .stage-jump select { min-height: 32px; padding: 4px 8px; }
+    .dag-viewport { position: relative; min-height: 620px; max-height: calc(100vh - 255px); overflow: auto; background: var(--surface-2); }
+    .dag-sizer { position: relative; }
+    .dag-canvas { position: absolute; left: 0; top: 0; transform-origin: left top; }
+    .section-layer, .node-layer, .edge-layer { position: absolute; inset: 0; }
+    .section-band { position: absolute; top: 0; height: 100%; border-right: 1px dashed color-mix(in srgb, var(--border) 80%, transparent); background: color-mix(in srgb, var(--surface) 35%, transparent); }
+    .section-band:nth-child(even) { background: color-mix(in srgb, var(--primary-soft) 22%, transparent); }
+    .section-band span { position: absolute; left: 18px; top: 15px; color: var(--muted); font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: 0.04em; }
+    .edge-layer { z-index: 1; overflow: visible; pointer-events: none; }
+    .dag-edge { fill: none; stroke: color-mix(in srgb, var(--primary) 70%, var(--border)); stroke-width: 2.2; opacity: 0.72; marker-end: url(#arrow-default); }
+    .dag-edge.residual { stroke: var(--residual); stroke-width: 3.2; opacity: 0.92; marker-end: url(#arrow-residual); }
+    .dag-edge.target { stroke: var(--loss); stroke-dasharray: 8 5; marker-end: url(#arrow-target); }
+    .dag-edge.is-active { stroke-width: 4; opacity: 1; }
+    .dag-edge.is-dimmed { opacity: 0.08; }
+    .node-layer { z-index: 2; }
+    .matrix-card { position: absolute; width: 176px; height: 142px; padding: 8px; border: 1px solid var(--border); border-left: 4px solid var(--activation); border-radius: 11px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 4px 12px rgba(25, 40, 29, 0.08); transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease, opacity 130ms ease; }
     .matrix-card:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 8px 17px rgba(25, 40, 29, 0.12); }
     .matrix-card.parameter { border-left-color: var(--parameter); }
     .matrix-card.gradient, .matrix-card.parameter-gradient { border-left-color: var(--gradient); }
@@ -112,11 +120,14 @@
     .card-top h3 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
     .card-kind { flex: 0 0 auto; color: var(--muted); font-size: 10px; font-family: var(--mono); }
     .shape { margin-top: 3px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
-    .thumbnail { display: block; width: 100%; height: 88px; margin-top: 7px; border-radius: 7px; background: var(--surface-2); }
+    .thumbnail { display: block; width: 100%; height: 62px; margin-top: 5px; border-radius: 7px; background: var(--surface-2); }
     .card-stats { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; color: var(--muted); font-family: var(--mono); font-size: 9px; }
     .card-stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .stream-arrow { display: none; }
-    .empty { padding: 18px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 12px; }
+    .dag-operator { position: absolute; width: 148px; height: 78px; display: flex; flex-direction: column; justify-content: center; padding: 9px 10px; border: 2px solid var(--primary); border-radius: 12px; background: var(--primary-soft); color: var(--primary-strong); text-align: center; box-shadow: 0 5px 14px rgba(20, 80, 57, 0.12); transition: opacity 130ms ease, transform 130ms ease; }
+    .dag-operator h3 { margin: 0; font-size: 12px; line-height: 1.25; }
+    .dag-operator code { display: block; margin-top: 5px; color: var(--muted); font-family: var(--mono); font-size: 9px; line-height: 1.25; overflow-wrap: anywhere; }
+    .dag-node.is-dimmed { opacity: 0.18; }
+    .dag-node.is-focus { transform: translateY(-3px); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 26%, transparent), 0 8px 20px rgba(20, 80, 57, 0.16); }
     footer { padding: 18px 4px 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 
     dialog { width: min(1000px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 24px 70px rgba(0,0,0,0.28); }
@@ -150,11 +161,9 @@
       .toolbar { align-items: stretch; }
       .spacer { display: none; }
       .coverage { margin-left: 0; width: 100%; }
-      .rail-wrap { overflow: hidden; }
-      .rail { grid-template-columns: 1fr; width: auto; min-width: 0; }
-      .rail-item::after { content: "↓"; right: 8px; }
-      .board-viewport { padding: 12px; }
-      .board { grid-template-columns: 1fr; min-width: 0; }
+      .dag-toolbar { align-items: flex-start; }
+      .zoom-control { width: 100%; margin-left: 0; }
+      .dag-viewport { min-height: 560px; max-height: 70vh; }
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
   </style>
@@ -164,8 +173,8 @@
     <header class="hero">
       <div>
         <p class="eyebrow">L12 · Global Stream Overview</p>
-        <h1>把 Transformer 的所有矩阵摊在一张图上</h1>
-        <p>这里不追踪一个节点，而是把同一次计算的每个张量都摆到对应的 stage 里：看 residual stream 贯穿哪里，看 attention 和 FFN 从哪里取数、把什么写回，再切到反向观察梯度沿原路返回。</p>
+        <h1>看见 Transformer 的执行 DAG</h1>
+        <p>矩阵是数据节点，RMSNorm、MatMul、Softmax 和 Residual Add 是算子节点。沿箭头看清楚每一步到底读了哪些矩阵、产出了哪个矩阵，以及 residual、Q/K/V 和 SwiGLU 在哪里分叉与汇合。</p>
       </div>
       <a class="back-link" href="L12_llama3_8b_flow.html">← 回到逐步解释页</a>
     </header>
@@ -191,11 +200,20 @@
     </section>
 
     <section class="stream-shell">
-      <div class="rail-wrap">
-        <div class="rail" id="rail" aria-label="residual stream rail"></div>
+      <div class="dag-toolbar">
+        <strong>执行框图</strong>
+        <small>矩阵 → 算子 → 矩阵；箭头表示真实数据依赖，金色路径表示 residual skip。</small>
+        <div class="stage-jump"><label for="stage-jump">跳到 stage</label><select id="stage-jump"></select></div>
+        <div class="zoom-control"><label for="zoom">缩放</label><input id="zoom" type="range" min="45" max="100" step="5" value="65"><span class="zoom-value" id="zoom-value">65%</span></div>
       </div>
-      <div class="board-viewport">
-        <div class="board" id="board" aria-label="all tensors in the Transformer stream"></div>
+      <div class="dag-viewport" id="dag-viewport" aria-label="Transformer execution DAG">
+        <div class="dag-sizer" id="dag-sizer">
+          <div class="dag-canvas" id="dag-canvas">
+            <div class="section-layer" id="section-layer"></div>
+            <svg class="edge-layer" id="edge-layer" aria-hidden="true"></svg>
+            <div class="node-layer" id="node-layer"></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -226,7 +244,8 @@
       const $ = (id) => document.getElementById(id);
       const el = {
         preset: $("preset"), seed: $("seed"), regenerate: $("regenerate"), modeButtons: [...document.querySelectorAll(".mode-button[data-mode]")],
-        rail: $("rail"), board: $("board"), coverage: $("coverage"), error: $("error"), dialog: $("matrix-dialog"),
+        coverage: $("coverage"), error: $("error"), dialog: $("matrix-dialog"), viewport: $("dag-viewport"), sizer: $("dag-sizer"), canvas: $("dag-canvas"),
+        sectionLayer: $("section-layer"), edgeLayer: $("edge-layer"), nodeLayer: $("node-layer"), stageJump: $("stage-jump"), zoom: $("zoom"), zoomValue: $("zoom-value"),
         close: $("close-dialog"), detailTitle: $("detail-title"), detailSubtitle: $("detail-subtitle"), detailBatchField: $("detail-batch-field"),
         detailBatch: $("detail-batch"), detailHeadField: $("detail-head-field"), detailHead: $("detail-head"), detailMeta: $("detail-meta"),
         detailGrid: $("detail-grid"), detailPager: $("detail-pager"), detailPrevRow: $("detail-prev-row"), detailNextRow: $("detail-next-row"),
@@ -239,6 +258,9 @@
       let detailHead = 0;
       let detailRowPage = 0;
       let detailColumnPage = 0;
+      let graph = null;
+      let nodeIndex = new Map();
+      let zoom = 0.65;
       const pageRows = 12;
       const pageColumns = 14;
 
@@ -269,7 +291,7 @@
       }
       function drawThumbnail(canvas, tensor) {
         const width = Math.max(1, canvas.clientWidth || 210);
-        const height = 88;
+        const height = Math.max(1, canvas.clientHeight || 62);
         canvas.width = Math.floor(width * (window.devicePixelRatio || 1));
         canvas.height = Math.floor(height * (window.devicePixelRatio || 1));
         const context = canvas.getContext("2d");
@@ -310,37 +332,103 @@
         $("config-heads").textContent = `${c.heads}/${c.kvHeads}`; $("config-ff").textContent = c.intermediate; $("config-vocab").textContent = c.vocab;
         $("config-params").textContent = result.parameterCount.toLocaleString("zh-CN");
       }
-      function renderRail() {
-        const labels = mode === "forward"
-          ? [["x₀", "embedding / residual stream"], ["Q K V", "attention reads normalized x₀"], ["context", "weighted information retrieval"], ["x₁", "attention residual add"], ["FFN", "token-wise transformation"], ["x₂ → loss", "final norm / vocabulary"]]
-          : [["dLoss", "start at scalar loss"], ["dFFN", "gradient through down / gate / up"], ["dAttention", "gradient through AV / QKᵀ"], ["dQKV", "GQA reduce + projections"], ["dResidual", "residual paths accumulate"], ["dEmbedding", "table rows update"]];
-        el.rail.innerHTML = labels.map(([title, subtitle]) => `<div class="rail-item"><strong>${title}</strong><small>${subtitle}</small></div>`).join("");
+      function registryEntry(reference) {
+        return Registry.flatten(mode).find((entry) => Registry.keyOf(entry) === reference);
       }
-      function renderBoard() {
-        const groups = Registry.groups[mode];
-        el.board.innerHTML = "";
-        groups.forEach((group, groupIndex) => {
-          const stage = document.createElement("section");
-          stage.className = "stage";
-          stage.innerHTML = `<header class="stage-header"><small>STAGE ${String(groupIndex + 1).padStart(2, "0")}</small><h2>${safeHtml(group.title)}</h2><p>${safeHtml(group.subtitle)}</p></header>`;
-          const cards = document.createElement("div");
-          cards.className = "cards";
-          group.items.forEach((entry) => cards.appendChild(makeCard(entry)));
-          stage.appendChild(cards);
-          el.board.appendChild(stage);
-        });
+      function renderDAG() {
+        graph = Registry.graphs[mode];
+        nodeIndex = new Map(graph.nodes.map((node) => [node.id, node]));
+        el.stageJump.innerHTML = graph.sections.map((section, index) => `<option value="${section.x}">STAGE ${String(index + 1).padStart(2, "0")} · ${safeHtml(section.label)}</option>`).join("");
+        el.canvas.style.width = `${graph.width}px`;
+        el.canvas.style.height = `${graph.height}px`;
+        renderZoom();
+        el.sectionLayer.innerHTML = graph.sections.map((section) => `<div class="section-band" style="left:${section.x}px;width:${section.width}px"><span>${safeHtml(section.label)}</span></div>`).join("");
+        el.nodeLayer.innerHTML = "";
+        graph.nodes.forEach((node) => el.nodeLayer.appendChild(node.type === "tensor" ? makeTensorNode(node) : makeOperatorNode(node)));
+        renderEdges();
       }
-      function makeCard(entry) {
+      function renderZoom() {
+        if (!graph) return;
+        el.zoom.value = Math.round(zoom * 100);
+        el.zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+        el.sizer.style.width = `${Math.ceil(graph.width * zoom)}px`;
+        el.sizer.style.height = `${Math.ceil(graph.height * zoom)}px`;
+        el.canvas.style.transform = `scale(${zoom})`;
+      }
+      function makeTensorNode(node) {
+        const entry = registryEntry(node.reference);
+        if (!entry) throw new Error(`registry entry missing for ${node.reference}`);
         const tensor = resolve(entry);
         const button = document.createElement("button");
         button.type = "button";
-        button.className = `matrix-card ${entry.kind}`;
+        button.className = `dag-node matrix-card ${entry.kind}`;
+        button.dataset.graphId = node.id;
+        button.style.left = `${node.x}px`;
+        button.style.top = `${node.y}px`;
         button.setAttribute("aria-label", `${entry.label}, shape [${tensor.shape.join(", ")}], click to inspect`);
         const stats = Engine.tensorStats(tensor);
         button.innerHTML = `<div class="card-top"><h3>${safeHtml(entry.label)}</h3><span class="card-kind">${kindLabel(entry.kind)}</span></div><div class="shape">[${tensor.shape.join(", ")}] · ${tensor.data.length.toLocaleString("zh-CN")}</div><canvas class="thumbnail" role="img" aria-label="${safeHtml(entry.label)} heatmap"></canvas><div class="card-stats"><span>min ${format(stats.min, 2)}</span><span>max ${format(stats.max, 2)}</span><span>RMS ${format(stats.rms, 2)}</span></div>`;
         button.addEventListener("click", () => openDetail(entry));
+        button.addEventListener("mouseenter", () => focusGraphNode(node.id));
+        button.addEventListener("mouseleave", clearGraphFocus);
         requestAnimationFrame(() => drawThumbnail(button.querySelector("canvas"), tensor));
         return button;
+      }
+      function makeOperatorNode(node) {
+        const box = document.createElement("div");
+        box.className = "dag-node dag-operator";
+        box.dataset.graphId = node.id;
+        box.style.left = `${node.x}px`;
+        box.style.top = `${node.y}px`;
+        box.setAttribute("role", "group");
+        box.setAttribute("aria-label", `${node.label}: ${node.formula}`);
+        box.innerHTML = `<h3>${safeHtml(node.label)}</h3><code>${safeHtml(node.formula)}</code>`;
+        box.addEventListener("mouseenter", () => focusGraphNode(node.id));
+        box.addEventListener("mouseleave", clearGraphFocus);
+        return box;
+      }
+      function nodeDimensions(node) { return node.type === "tensor" ? { width: 176, height: 142 } : { width: 148, height: 78 }; }
+      function renderEdges() {
+        const ns = "http://www.w3.org/2000/svg";
+        el.edgeLayer.setAttribute("width", graph.width);
+        el.edgeLayer.setAttribute("height", graph.height);
+        el.edgeLayer.setAttribute("viewBox", `0 0 ${graph.width} ${graph.height}`);
+        el.edgeLayer.innerHTML = `<defs><marker id="arrow-default" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="currentColor"></path></marker><marker id="arrow-residual" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--residual)"></path></marker><marker id="arrow-target" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--loss)"></path></marker></defs>`;
+        graph.edges.forEach((connection, index) => {
+          const from = nodeIndex.get(connection.from);
+          const to = nodeIndex.get(connection.to);
+          if (!from || !to) return;
+          const fromSize = nodeDimensions(from); const toSize = nodeDimensions(to);
+          const sx = from.x + fromSize.width; const sy = from.y + fromSize.height / 2;
+          const tx = to.x; const ty = to.y + toSize.height / 2;
+          let path;
+          if (connection.routeY !== undefined) {
+            const elbow = Math.min(tx - 18, sx + 30);
+            path = `M ${sx} ${sy} H ${elbow} V ${connection.routeY} H ${tx - 30} V ${ty} H ${tx}`;
+          } else {
+            const dx = Math.max(26, (tx - sx) * 0.42);
+            path = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+          }
+          const pathElement = document.createElementNS(ns, "path");
+          pathElement.setAttribute("d", path);
+          pathElement.classList.add("dag-edge");
+          if (connection.kind) pathElement.classList.add(connection.kind);
+          pathElement.dataset.edgeIndex = String(index);
+          pathElement.dataset.from = connection.from;
+          pathElement.dataset.to = connection.to;
+          el.edgeLayer.appendChild(pathElement);
+        });
+      }
+      function focusGraphNode(nodeId) {
+        const connected = new Set([nodeId]);
+        graph.edges.forEach((connection) => { if (connection.from === nodeId) connected.add(connection.to); if (connection.to === nodeId) connected.add(connection.from); });
+        document.querySelectorAll(".dag-node").forEach((node) => node.classList.toggle("is-dimmed", !connected.has(node.dataset.graphId)));
+        document.querySelectorAll(".dag-edge").forEach((path) => { const active = path.dataset.from === nodeId || path.dataset.to === nodeId; path.classList.toggle("is-active", active); path.classList.toggle("is-dimmed", !active); });
+        const current = document.querySelector(`[data-graph-id="${CSS.escape(nodeId)}"]`);
+        if (current) current.classList.add("is-focus");
+      }
+      function clearGraphFocus() {
+        document.querySelectorAll(".dag-node, .dag-edge").forEach((element) => element.classList.remove("is-dimmed", "is-active", "is-focus"));
       }
       function openDetail(entry) {
         detail = entry; detailBatch = 0; detailHead = 0; detailRowPage = 0; detailColumnPage = 0;
@@ -386,17 +474,19 @@
         try {
           const config = Engine.PRESETS[el.preset.value]; const seed = Math.max(1, Math.floor(Number(el.seed.value) || 42)); el.seed.value = seed; result = Engine.run(config, seed);
           const report = Registry.coverage(mode, result); el.coverage.textContent = report.complete ? `${Registry.flatten(mode).length} tensors · registry complete` : `registry error: ${report.missing.join(",")}`; el.coverage.classList.toggle("bad", !report.complete);
-          renderConfig(); renderRail(); renderBoard(); el.error.style.display = "none";
+          renderConfig(); renderDAG(); el.error.style.display = "none";
         } catch (error) { el.error.style.display = "block"; el.error.textContent = `页面遇到错误：${error.message || error}`; console.error(error); }
       }
       el.regenerate.addEventListener("click", run); el.preset.addEventListener("change", run);
       el.modeButtons.forEach((button) => button.addEventListener("click", () => { mode = button.dataset.mode; el.modeButtons.forEach((peer) => peer.setAttribute("aria-pressed", String(peer === button))); run(); }));
+      el.zoom.addEventListener("input", () => { zoom = Number(el.zoom.value) / 100; renderZoom(); });
+      el.stageJump.addEventListener("change", () => { el.viewport.scrollTo({ left: Number(el.stageJump.value) * zoom - 18, behavior: "smooth" }); });
       el.close.addEventListener("click", () => el.dialog.close()); el.dialog.addEventListener("click", (event) => { if (event.target === el.dialog) el.dialog.close(); });
       el.detailBatch.addEventListener("change", () => { detailBatch = Number(el.detailBatch.value); detailRowPage = 0; detailColumnPage = 0; renderDetailGrid(); });
       el.detailHead.addEventListener("change", () => { detailHead = Number(el.detailHead.value); detailRowPage = 0; detailColumnPage = 0; renderDetailGrid(); });
       el.detailPrevRow.addEventListener("click", () => { detailRowPage -= 1; renderDetailGrid(); }); el.detailNextRow.addEventListener("click", () => { detailRowPage += 1; renderDetailGrid(); });
       el.detailPrevCol.addEventListener("click", () => { detailColumnPage -= 1; renderDetailGrid(); }); el.detailNextCol.addEventListener("click", () => { detailColumnPage += 1; renderDetailGrid(); });
-      window.addEventListener("resize", () => document.querySelectorAll(".thumbnail").forEach((canvas) => { const entry = Registry.flatten(mode).find((candidate) => candidate.label === canvas.getAttribute("aria-label")?.replace(" heatmap", "")); if (entry) drawThumbnail(canvas, resolve(entry)); }));
+      window.addEventListener("resize", () => document.querySelectorAll(".thumbnail").forEach((canvas) => { const node = canvas.closest("[data-graph-id]"); const graphNode = node ? nodeIndex.get(node.dataset.graphId) : null; const entry = graphNode?.type === "tensor" ? registryEntry(graphNode.reference) : null; if (entry) drawThumbnail(canvas, resolve(entry)); }));
       if (!Engine || !Registry) throw new Error("L12 engine or stream registry failed to load");
       run();
     })();

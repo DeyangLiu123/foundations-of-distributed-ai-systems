@@ -27,3 +27,27 @@ test("all registry entries point to tensors with non-empty shapes", () => {
     }
   }
 });
+
+test("forward and backward execution graphs have no dangling or duplicated tensor nodes", () => {
+  for (const mode of ["forward", "backward"]) {
+    const report = Registry.graphIntegrity(mode);
+    assert.deepEqual(report, {
+      duplicateNodeIds: [],
+      danglingEdges: [],
+      missingTensors: [],
+      unexpectedTensors: [],
+      duplicateTensors: [],
+      complete: true,
+    });
+  }
+});
+
+test("execution graph edges move downstream and therefore remain acyclic", () => {
+  for (const mode of ["forward", "backward"]) {
+    const graph = Registry.graphs[mode];
+    const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+    for (const connection of graph.edges) {
+      assert.ok(nodes.get(connection.from).x < nodes.get(connection.to).x, `${mode}: ${connection.from} must precede ${connection.to}`);
+    }
+  }
+});
