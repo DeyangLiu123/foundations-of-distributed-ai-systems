@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>L12 Transformer 矩阵与数据流</title>
+  <style>
+    :root {
+      --bg: #f7f7f4;
+      --surface: #ffffff;
+      --surface-2: #f0f1ee;
+      --surface-3: #e6e8e2;
+      --text: #1f2925;
+      --muted: #68736d;
+      --border: #d7dcd5;
+      --primary: #126d55;
+      --primary-soft: #d8eee5;
+      --primary-strong: #085841;
+      --positive: #2563eb;
+      --negative: #dc2626;
+      --warning: #a15c08;
+      --shadow: 0 14px 35px rgba(35, 45, 39, 0.08);
+      --radius: 16px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111714;
+        --surface: #18201c;
+        --surface-2: #202a25;
+        --surface-3: #2a352f;
+        --text: #edf3ef;
+        --muted: #a6b3ac;
+        --border: #34423b;
+        --primary: #75d6b3;
+        --primary-soft: #173e31;
+        --primary-strong: #a4ebd0;
+        --positive: #60a5fa;
+        --negative: #fb7185;
+        --warning: #f5b35e;
+        --shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+    button, input, select { font: inherit; }
+    button, select, input[type="number"] {
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    button { cursor: pointer; }
+    button:focus-visible, select:focus-visible, input:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
+      outline-offset: 2px;
+    }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+    .app { width: min(1500px, 100%); margin: 0 auto; padding: 24px; }
+    .hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--primary-strong);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 42px); letter-spacing: -0.035em; }
+    .hero p { max-width: 760px; margin: 10px 0 0; color: var(--muted); line-height: 1.65; }
+    .truth-chip {
+      flex: 0 0 auto;
+      padding: 10px 13px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .truth-chip strong { color: var(--primary-strong); }
+
+    .toolbar, .pipeline-card, .detail-card, .matrix-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .field { display: grid; gap: 5px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    .field select, .field input { min-height: 38px; padding: 7px 10px; }
+    .seed-input { width: 100px; }
+    .lr-input { width: 90px; }
+    .spacer { flex: 1 1 20px; }
+    .button-group { display: flex; gap: 7px; align-items: center; }
+    .button-group button, .run-button { min-height: 38px; padding: 7px 12px; }
+    .mode-button[aria-pressed="true"], .primary-button {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: var(--bg);
+      font-weight: 700;
+    }
+    @media (prefers-color-scheme: dark) {
+      .mode-button[aria-pressed="true"], .primary-button { color: #102018; }
+    }
+    .icon-button { min-width: 40px; font-family: var(--mono); font-weight: 700; }
+
+    .config-strip {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(72px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .config-item {
+      padding: 9px 11px;
+      background: var(--surface-2);
+      border-radius: 10px;
+      min-width: 0;
+    }
+    .config-item span { display: block; color: var(--muted); font-size: 11px; }
+    .config-item strong { display: block; margin-top: 3px; font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
+
+    .update-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+      padding: 11px 14px;
+      border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+      border-radius: 12px;
+      background: var(--primary-soft);
+    }
+    .update-banner.visible { display: flex; }
+    .update-banner strong { font-family: var(--mono); }
+
+    .pipeline-card { padding: 16px; margin-bottom: 14px; overflow: hidden; }
+    .section-header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+    .section-header h2 { margin: 0; font-size: 16px; }
+    .step-counter { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .pipeline-scroll { overflow-x: auto; padding: 15px 2px 6px; }
+    .pipeline {
+      display: flex;
+      align-items: center;
+      width: max-content;
+      min-width: 100%;
+    }
+    .stage-button {
+      position: relative;
+      width: 120px;
+      min-height: 66px;
+      padding: 9px 8px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border-color: transparent;
+      text-align: left;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+    .stage-button small { display: block; margin-bottom: 4px; color: var(--muted); font-family: var(--mono); }
+    .stage-button span { display: block; line-height: 1.3; font-weight: 650; }
+    .stage-button.complete { background: var(--primary-soft); }
+    .stage-button.active {
+      border-color: var(--primary);
+      background: var(--surface);
+      transform: translateY(-2px);
+    }
+    .stage-button.active::after {
+      content: "";
+      position: absolute;
+      left: 12px; right: 12px; bottom: -6px;
+      height: 3px;
+      border-radius: 3px;
+      background: var(--primary);
+      animation: pulse 900ms ease-in-out infinite alternate;
+    }
+    .arrow {
+      width: 32px;
+      color: var(--muted);
+      text-align: center;
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+    .arrow.complete { color: var(--primary); }
+    @keyframes pulse { from { opacity: 0.45; } to { opacity: 1; } }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.9fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .detail-card, .matrix-card { min-width: 0; }
+    .detail-card { padding: 20px; }
+    .detail-kicker { margin: 0 0 7px; color: var(--primary-strong); font-size: 12px; font-weight: 750; }
+    .detail-card h2 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+    .detail-description { margin: 12px 0; color: var(--muted); line-height: 1.7; }
+    .equation {
+      margin: 16px 0;
+      padding: 13px;
+      border-left: 3px solid var(--primary);
+      background: var(--surface-2);
+      font-family: var(--mono);
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+    .shape-note { margin: 0; color: var(--text); line-height: 1.65; }
+    .shape-note strong { color: var(--primary-strong); }
+    .concept-note {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .sequence-preview {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .sequence-preview code { color: var(--primary-strong); }
+
+    .matrix-card { padding: 16px; }
+    .matrix-toolbar {
+      display: flex;
+      align-items: end;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-bottom: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .matrix-toolbar .field select { max-width: 260px; }
+    .matrix-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px 15px;
+      margin: 12px 0;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .matrix-meta strong { color: var(--text); font-weight: 650; }
+    .matrix-viewport {
+      overflow: auto;
+      max-height: 620px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface-2);
+    }
+    .matrix-grid {
+      display: grid;
+      width: max-content;
+      min-width: 100%;
+      padding: 6px;
+      gap: 2px;
+    }
+    .matrix-cell, .matrix-axis {
+      min-width: 62px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 5px;
+      border-radius: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .matrix-axis {
+      position: sticky;
+      z-index: 2;
+      background: var(--surface-3);
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .matrix-axis.column { top: 6px; }
+    .matrix-axis.row { left: 6px; }
+    .matrix-axis.corner { top: 6px; left: 6px; z-index: 3; }
+    .matrix-cell {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+    .matrix-cell.positive {
+      background: color-mix(in srgb, var(--positive) var(--heat), var(--surface));
+    }
+    .matrix-cell.negative {
+      background: color-mix(in srgb, var(--negative) var(--heat), var(--surface));
+    }
+    .matrix-cell.masked { color: var(--muted); background: var(--surface-3); }
+    .matrix-pager {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .pager-status { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .legend { display: flex; gap: 12px; align-items: center; color: var(--muted); font-size: 12px; }
+    .legend-swatch { width: 35px; height: 10px; border-radius: 6px; display: inline-block; }
+    .legend-swatch.negative { background: color-mix(in srgb, var(--negative) 48%, var(--surface)); }
+    .legend-swatch.positive { background: color-mix(in srgb, var(--positive) 48%, var(--surface)); }
+    .error-box {
+      display: none;
+      margin: 16px 0;
+      padding: 14px;
+      border: 1px solid var(--negative);
+      border-radius: 10px;
+      color: var(--negative);
+      white-space: pre-wrap;
+    }
+    footer { padding: 22px 4px 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 1fr; }
+      .config-strip { grid-template-columns: repeat(4, 1fr); }
+      .matrix-viewport { max-height: 540px; }
+    }
+    @media (max-width: 620px) {
+      .app { padding: 14px; }
+      .hero { align-items: flex-start; flex-direction: column; gap: 12px; }
+      .truth-chip { white-space: normal; }
+      .toolbar { align-items: stretch; }
+      .spacer { display: none; }
+      .button-group { flex-wrap: wrap; }
+      .config-strip { grid-template-columns: repeat(2, 1fr); }
+      .update-banner { align-items: flex-start; flex-direction: column; }
+      .matrix-toolbar { align-items: stretch; }
+      .matrix-toolbar .field { flex: 1 1 140px; }
+      .matrix-toolbar .field select { width: 100%; max-width: none; }
+      .matrix-cell, .matrix-axis { min-width: 58px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">L12 · Transformer Matrix Flow Lab</p>
+        <h1>看见真实矩阵如何穿过 Transformer</h1>
+        <p>不是形状占位符：每个数值都由当前配置现算。从 token 到 loss 走一遍前向，再让梯度沿同一张图回来。</p>
+      </div>
+      <div class="truth-chip"><strong>Float64 真实计算</strong> · 界面仅显示取整</div>
+    </header>
+
+    <section class="toolbar" aria-label="演示控制">
+      <div class="field">
+        <label for="preset-select">模型尺寸</label>
+        <select id="preset-select">
+          <option value="compact">紧凑 · B1 S6 d16</option>
+          <option value="standard" selected>标准 · B2 S8 d32</option>
+          <option value="expanded">扩展 · B4 S16 d64</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="seed-input">随机种子</label>
+        <input id="seed-input" class="seed-input" type="number" min="1" max="999999" value="42">
+      </div>
+      <button type="button" class="run-button" id="regenerate-button">重新生成</button>
+
+      <div class="spacer"></div>
+      <div class="button-group" aria-label="传播方向">
+        <button type="button" class="mode-button" data-mode="forward" aria-pressed="true">前向</button>
+        <button type="button" class="mode-button" data-mode="backward" aria-pressed="false">反向</button>
+      </div>
+      <div class="button-group" aria-label="步骤播放">
+        <button type="button" class="icon-button" id="previous-button" aria-label="上一步">←</button>
+        <button type="button" id="play-button">▶ 播放</button>
+        <button type="button" class="icon-button" id="next-button" aria-label="下一步">→</button>
+      </div>
+      <div class="field">
+        <label for="lr-input">SGD 学习率</label>
+        <input id="lr-input" class="lr-input" type="number" min="0.0001" max="1" step="0.01" value="0.05">
+      </div>
+      <button type="button" class="primary-button run-button" id="sgd-button">执行一步 SGD</button>
+    </section>
+
+    <section class="config-strip" id="config-strip" aria-label="当前配置"></section>
+    <section class="update-banner" id="update-banner" aria-live="polite"></section>
+    <div class="error-box" id="error-box" role="alert"></div>
+
+    <section class="pipeline-card">
+      <div class="section-header">
+        <h2 id="pipeline-title">前向数据流</h2>
+        <div class="step-counter" id="step-counter"></div>
+      </div>
+      <div class="pipeline-scroll">
+        <div class="pipeline" id="pipeline" aria-label="Transformer 计算流程"></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <article class="detail-card">
+        <p class="detail-kicker" id="detail-kicker"></p>
+        <h2 id="detail-title"></h2>
+        <p class="detail-description" id="detail-description"></p>
+        <div class="equation" id="detail-equation"></div>
+        <p class="shape-note" id="detail-shape"></p>
+        <div class="concept-note" id="concept-note"></div>
+        <div class="sequence-preview" id="sequence-preview"></div>
+      </article>
+
+      <article class="matrix-card">
+        <div class="matrix-toolbar">
+          <div class="field">
+            <label for="tensor-select">当前查看的张量</label>
+            <select id="tensor-select"></select>
+          </div>
+          <div class="field" id="batch-field">
+            <label for="batch-select">batch 切片</label>
+            <select id="batch-select"></select>
+          </div>
+          <div class="field" id="head-field">
+            <label for="head-select">head 切片</label>
+            <select id="head-select"></select>
+          </div>
+        </div>
+        <div class="matrix-meta" id="matrix-meta"></div>
+        <div class="matrix-viewport" id="matrix-viewport">
+          <div class="matrix-grid" id="matrix-grid" role="grid" aria-label="张量数值"></div>
+        </div>
+        <div class="matrix-pager">
+          <div class="button-group">
+            <button type="button" id="previous-rows">上一组行</button>
+            <button type="button" id="next-rows">下一组行</button>
+            <button type="button" id="previous-columns">上一组列</button>
+            <button type="button" id="next-columns">下一组列</button>
+          </div>
+          <div class="pager-status" id="pager-status"></div>
+          <div class="legend" aria-label="热力颜色图例">
+            <span><i class="legend-swatch negative"></i> 负</span>
+            <span>0</span>
+            <span><i class="legend-swatch positive"></i> 正</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer>
+      结构按 Llama 风格缩小：RMSNorm、GQA、RoPE、SwiGLU、不共享 embedding/lm_head。为了能逐格观察，只堆叠一个 decoder block，不使用 dropout 和 bias。
+    </footer>
+  </main>
+
+  <noscript>这个演示需要 JavaScript 才能完成矩阵计算。</noscript>
+  <script src="L12_tensor_engine.js"></script>
+  <script>
+    (function startLab() {
+      "use strict";
+
+      const Engine = window.L12Engine;
+      const FORWARD_STEPS = [
+        {
+          short: "token / embedding", title: "Token 查表变成向量", kicker: "FORWARD 01 · INPUT",
+          description: "每个 token id 只是整数。Embedding 用 id 取出参数表的一行，于是 B×S 个整数变成 B×S×d 的残差流起点。",
+          equation: "X[b,s,:] = E[token_id[b,s], :]",
+          shape: "[B,S] → [B,S,d]",
+          concept: "同一个 token id 总是查同一行；上下文差异要等 attention 后才出现。",
+          tensors: [["a", "token_ids", "token ids"], ["a", "target_ids", "next-token targets"], ["p", "embedding_table", "embedding table E"], ["a", "embedding", "X = embedding(ids)"]],
+        },
+        {
+          short: "RMSNorm 1", title: "第一次 RMSNorm 校准尺度", kicker: "FORWARD 02 · PRE-NORM",
+          description: "每个 token 的 d 维向量各自计算均方根。它不减均值，只缩放并乘可学习的 γ。",
+          equation: "RMSNorm(x) = x / sqrt(mean(x²) + ε) ⊙ γ",
+          shape: "[B,S,d] → [B,S,d]",
+          concept: "pre-norm 表示子层先读取归一化值，但残差支路保留未归一化的 X。",
+          tensors: [["a", "embedding", "input X"], ["p", "rms1_gamma", "RMSNorm γ"], ["a", "rms1", "normalized X"]],
+        },
+        {
+          short: "Q / K / V", title: "同一个 X 投影成 Q、K、V", kicker: "FORWARD 03 · PROJECTION",
+          description: "Q 保留 h 个头，K/V 只产生 h_kv 个头。这就是 grouped-query attention 比完整 MHA 少的两块宽度。",
+          equation: "Q=XWq, K=XWk, V=XWv",
+          shape: "Q:[B,S,d], K/V:[B,S,h_kv·d_head]",
+          concept: "K 负责匹配，V 负责被取走；它们的数值来自不同的参数矩阵。",
+          tensors: [["a", "rms1", "normalized X"], ["p", "W_q", "Wq"], ["p", "W_k", "Wk"], ["p", "W_v", "Wv"], ["a", "q_linear", "Q"], ["a", "k_linear", "K"], ["a", "v_linear", "V"]],
+        },
+        {
+          short: "RoPE / GQA", title: "RoPE 旋转 Q/K，GQA 共享 K/V", kicker: "FORWARD 04 · POSITION + HEADS",
+          description: "Q/K 先拆成多头，每两维根据位置旋转。随后每组 query heads 共用同一组 K/V，才进入 attention 计算。",
+          equation: "RoPE(q_p) = R(p·θ)q_p;  kv_head = floor(q_head / group_size)",
+          shape: "Q:[B,h,S,d_head], K/V 广播到 [B,h,S,d_head]",
+          concept: "RoPE 没有可训练参数；GQA 只在计算时广播，不是真复制多份权重。",
+          tensors: [["a", "q_heads", "Q heads"], ["a", "k_heads", "K heads"], ["a", "q_rope", "RoPE(Q)"], ["a", "k_rope", "RoPE(K)"], ["a", "k_repeated", "GQA repeated K"], ["a", "v_repeated", "GQA repeated V"]],
+        },
+        {
+          short: "QKᵀ + mask", title: "两两点积得到 causal scores", kicker: "FORWARD 05 · SCORE",
+          description: "每个 query 与所有 key 做点积，得到 S×S 矩阵。为了不偷看未来，上三角元素被写成 −∞。",
+          equation: "scores = QKᵀ / sqrt(d_head) + causal_mask",
+          shape: "[B,h,S,d_head] × [B,h,d_head,S] → [B,h,S,S]",
+          concept: "这张 S×S 矩阵就是序列长度带来 O(S²) 增长的地方。",
+          tensors: [["a", "q_rope", "RoPE(Q)"], ["a", "k_repeated", "repeated K"], ["a", "causal_scores", "masked scores"]],
+        },
+        {
+          short: "softmax", title: "Softmax 把 score 变成每行和为 1 的权重", kicker: "FORWARD 06 · NORMALIZE",
+          description: "每个 query 占一行。未来位置的 −∞ 在 softmax 后精确变成 0，剩下可见位置的权重和为 1。",
+          equation: "A[i,:] = softmax(scores[i,:])",
+          shape: "[B,h,S,S] → [B,h,S,S]",
+          concept: "score 可以为负且不归一；只有 softmax 后的 A 才是 attention weight。",
+          tensors: [["a", "causal_scores", "scores"], ["a", "attention_weights", "attention weights A"]],
+        },
+        {
+          short: "A·V", title: "用 attention weight 混合 V", kicker: "FORWARD 07 · RETRIEVE",
+          description: "权重矩阵的每一行告诉当前 token：从每个可见位置的 V 取多少。多头结果最后重新拼回 d 维。",
+          equation: "context = A V;  concat(heads) → [B,S,d]",
+          shape: "[B,h,S,S] × [B,h,S,d_head] → [B,S,d]",
+          concept: "K 只参与“选谁”，真正被加权汇总的内容是 V。",
+          tensors: [["a", "attention_weights", "A"], ["a", "v_repeated", "V"], ["a", "context_heads", "context per head"], ["a", "context", "concatenated context"]],
+        },
+        {
+          short: "Wo + residual", title: "输出投影后加回第一条残差", kicker: "FORWARD 08 · RESIDUAL",
+          description: "拼接的多头结果经 Wo 混合，然后与最初的 embedding 相加。主干没有被 attention 替换，而是累加了一份上下文修正。",
+          equation: "x₁ = x₀ + context · Wo",
+          shape: "[B,S,d] + [B,S,d] → [B,S,d]",
+          concept: "residual stream 像一条主干公路：子层把新信息并入，不截断旧信息。",
+          tensors: [["a", "context", "context"], ["p", "W_o", "Wo"], ["a", "attn_out", "attention output"], ["a", "embedding", "residual input x₀"], ["a", "residual1", "x₁"]],
+        },
+        {
+          short: "RMSNorm 2", title: "第二次 RMSNorm 为 FFN 准备输入", kicker: "FORWARD 09 · PRE-NORM",
+          description: "注意归一化的是已经加入 attention 信息的 x₁。FFN 读取它的校准版，第二条 residual 仍保留原始 x₁。",
+          equation: "x̂₁ = RMSNorm(x₁)",
+          shape: "[B,S,d] → [B,S,d]",
+          concept: "一个 block 里有两次 pre-norm：attention 前一次，FFN 前一次。",
+          tensors: [["a", "residual1", "x₁"], ["p", "rms2_gamma", "RMSNorm γ"], ["a", "rms2", "normalized x₁"]],
+        },
+        {
+          short: "gate / up", title: "SwiGLU 同时做 gate 和 up 两次投影", kicker: "FORWARD 10 · FFN EXPAND",
+          description: "两块 d×d_ff 矩阵把每个 token 拉到更宽的中间空间。它们形状相同，但参数和分工不同。",
+          equation: "gate = x̂₁ W_gate;  up = x̂₁ W_up",
+          shape: "[B,S,d] → 两个 [B,S,d_ff]",
+          concept: "默认模型 d=32 时 d_ff=112，正好是 3.5d；这就是全场最宽的 activation。",
+          tensors: [["a", "rms2", "FFN input"], ["p", "W_gate", "Wgate"], ["p", "W_up", "Wup"], ["a", "gate", "gate projection"], ["a", "up", "up projection"]],
+        },
+        {
+          short: "SiLU ⊙ up", title: "SiLU 门控与 up 逐元素相乘", kicker: "FORWARD 11 · SWIGLU",
+          description: "gate 先经 SiLU 变成平滑开关，再与 up 的内容逐格相乘。某一格被放大还是压小，可直接对照两张矩阵。",
+          equation: "gated = SiLU(gate) ⊙ up",
+          shape: "[B,S,d_ff] ⊙ [B,S,d_ff] → [B,S,d_ff]",
+          concept: "这是逐元素乘法，不是矩阵乘法。",
+          tensors: [["a", "gate", "gate"], ["a", "silu_gate", "SiLU(gate)"], ["a", "up", "up"], ["a", "gated", "SiLU(gate) ⊙ up"]],
+        },
+        {
+          short: "down + residual", title: "Down projection 压回 d 维并加回残差", kicker: "FORWARD 12 · FFN OUTPUT",
+          description: "Wdown 把 d_ff 维的宽表示压回 d 维，这样才能与 x₁ 逐元素相加。一层 block 到此结束。",
+          equation: "x₂ = x₁ + gated · W_down",
+          shape: "[B,S,d_ff] → [B,S,d];  +x₁ → [B,S,d]",
+          concept: "FFN 有 gate/up/down 三块大矩阵，所以参数大头在这里。",
+          tensors: [["a", "gated", "gated hidden"], ["p", "W_down", "Wdown"], ["a", "ffn_out", "FFN output"], ["a", "residual1", "residual input x₁"], ["a", "residual2", "block output x₂"]],
+        },
+        {
+          short: "final norm", title: "离开 block 后再做最终 RMSNorm", kicker: "FORWARD 13 · MODEL OUTPUT",
+          description: "真正的 Llama 会堆叠很多 block；这个演示只堆一层，然后用 final RMSNorm 把残差流送入输出端。",
+          equation: "hidden = RMSNorm(x₂)",
+          shape: "[B,S,d] → [B,S,d]",
+          concept: "每层内部的 norm 和模型末尾的 final norm 是不同参数。",
+          tensors: [["a", "residual2", "x₂"], ["p", "final_rms_gamma", "final γ"], ["a", "final_norm", "final hidden"]],
+        },
+        {
+          short: "lm_head", title: "lm_head 把每个位置投影回词表", kicker: "FORWARD 14 · VOCABULARY",
+          description: "每个 token 的 d 维 hidden state 与 d×V 的输出权重相乘，得到 V 个 logits。本演示像 Llama-3-8B 一样不做 weight tying。",
+          equation: "logits = hidden · W_lm_head",
+          shape: "[B,S,d] × [d,V] → [B,S,V]",
+          concept: "logit 是未归一化分数；它们不需要在 0 到 1 之间。",
+          tensors: [["a", "final_norm", "final hidden"], ["p", "W_lm_head", "lm_head weight"], ["a", "logits", "vocabulary logits"]],
+        },
+        {
+          short: "cross-entropy", title: "Softmax + cross-entropy 得到一个标量 loss", kicker: "FORWARD 15 · LOSS",
+          description: "每个位置用下一个 token 作为 target。取目标词元的负对数概率，再对 B×S 个位置平均，整个模型就有了可反向的标量。",
+          equation: "L = mean(−log softmax(logits)[target])",
+          shape: "[B,S,V] + [B,S] → scalar",
+          concept: "反向传播的起点必须是标量。切到“反向”，梯度将从这个 loss 开始回流。",
+          tensors: [["a", "target_ids", "targets"], ["a", "logits", "logits"], ["a", "probabilities", "softmax probabilities"], ["a", "loss", "mean loss"]],
+        },
+      ];
+
+      const BACKWARD_STEPS = [
+        {
+          short: "loss → logits", title: "Cross-entropy 先给每个 logit 一个梯度", kicker: "BACKWARD 01 · LOSS",
+          description: "目标词元的梯度被减 1，其他词元保留当前概率，最后除以 B×S。这张矩阵会迫使目标 logit 上升。",
+          equation: "∂L/∂logits = (probabilities − one_hot(target)) / (B·S)",
+          shape: "scalar → [B,S,V]",
+          concept: "每一行梯度之和约为 0，因为整体平移所有 logits 不会改变 softmax。",
+          tensors: [["a", "probabilities", "probabilities"], ["a", "target_ids", "targets"], ["ga", "logits", "∂L/∂logits"]],
+        },
+        {
+          short: "lm_headᵀ", title: "lm_head 同时产生权重梯度和 hidden 梯度", kicker: "BACKWARD 02 · LINEAR",
+          description: "线性层的反向很对称：上游梯度乘 Wᵀ 回到输入，输入的转置乘上游梯度得到 W 的梯度。",
+          equation: "dHidden=dLogits·Wᵀ;  dW=Hiddenᵀ·dLogits",
+          shape: "[B,S,V] → [B,S,d] 与 [d,V]",
+          concept: "参数梯度要在 B×S 个位置上累加，不是每个 token 保留一份 W。",
+          tensors: [["ga", "logits", "dLogits"], ["ga", "final_norm", "dFinalHidden"], ["gp", "W_lm_head", "dW_lm_head"]],
+        },
+        {
+          short: "final RMSNorm", title: "梯度穿过 final RMSNorm", kicker: "BACKWARD 03 · NORM",
+          description: "RMSNorm 不是逐格独立缩放：均方根依赖整个 d 维向量，因此一个维度的梯度会影响同 token 的其他维度。",
+          equation: "dX = invRMS·(dY⊙γ) − X·invRMS³·sum(dY⊙γ⊙X)/d",
+          shape: "[B,S,d] → [B,S,d] 与 dγ:[d]",
+          concept: "γ 是可训练参数，所以它也有一条自己的反向分支。",
+          tensors: [["ga", "final_norm", "dFinalNorm"], ["ga", "residual2", "dBlockOutput"], ["gp", "final_rms_gamma", "dFinalGamma"]],
+        },
+        {
+          short: "residual 2 split", title: "加法把同一份梯度分给两条支路", kicker: "BACKWARD 04 · BRANCH",
+          description: "x₂=x₁+ffn_out，所以上游 dX₂ 原样流向 x₁ 和 ffn_out。前向是相加，反向就是复制成两条路。",
+          equation: "dX₁_direct = dX₂;  dFFN = dX₂",
+          shape: "[B,S,d] → 两个 [B,S,d]",
+          concept: "这就是 residual 被称为“梯度高速公路”的数学原因。",
+          tensors: [["ga", "residual2", "upstream dX₂"], ["ga", "residual1_direct", "residual branch"], ["ga", "ffn_out", "FFN branch"]],
+        },
+        {
+          short: "downᵀ", title: "梯度经 Wdownᵀ 回到 d_ff 宽度", kicker: "BACKWARD 05 · FFN",
+          description: "前向 down projection 把 d_ff 压到 d；反向则把 d 维上游梯度映射回 d_ff，同时累加 Wdown 的参数梯度。",
+          equation: "dGated=dFFN·Wdownᵀ;  dWdown=Gatedᵀ·dFFN",
+          shape: "[B,S,d] → [B,S,d_ff] 与 [d_ff,d]",
+          concept: "与前向一样，反向的最宽 activation 也出现在 FFN 中间。",
+          tensors: [["ga", "ffn_out", "dFFN"], ["ga", "gated", "dGated"], ["gp", "W_down", "dWdown"]],
+        },
+        {
+          short: "⊙ / SiLU′", title: "逐元素乘法把梯度分给 gate 和 up", kicker: "BACKWARD 06 · SWIGLU",
+          description: "gated=silu_gate⊙up，所以一边的梯度要乘另一边的前向值。gate 分支还要再乘 SiLU 导数。",
+          equation: "dSilu=dGated⊙up; dUp=dGated⊙Silu; dGate=dSilu⊙SiLU′(gate)",
+          shape: "[B,S,d_ff] → 两个 [B,S,d_ff]",
+          concept: "这里能看到链式法则的具体数字：上游梯度乘上本地导数。",
+          tensors: [["ga", "gated", "dGated"], ["a", "up", "forward up"], ["ga", "silu_gate", "dSiLU"], ["ga", "up", "dUp"], ["ga", "gate", "dGate"]],
+        },
+        {
+          short: "gateᵀ / upᵀ", title: "Gate 和 Up 两条路径在 FFN 输入处汇合", kicker: "BACKWARD 07 · ACCUMULATE",
+          description: "两个线性层都读取同一个 RMSNorm 输出，因此反向算出的两份 dRMS2 必须相加。",
+          equation: "dRMS2 = dGate·Wgateᵀ + dUp·Wupᵀ",
+          shape: "两个 [B,S,d] → [B,S,d]",
+          concept: "计算图上同一张量有多个使用者时，它的总梯度是各路贡献之和。",
+          tensors: [["ga", "gate", "dGate"], ["ga", "up", "dUp"], ["gp", "W_gate", "dWgate"], ["gp", "W_up", "dWup"], ["ga", "rms2_gate", "dRMS2 from gate"], ["ga", "rms2_up", "dRMS2 from up"], ["ga", "rms2", "accumulated dRMS2"]],
+        },
+        {
+          short: "RMSNorm 2ᵀ", title: "FFN 支路梯度穿过第二次 RMSNorm", kicker: "BACKWARD 08 · MERGE",
+          description: "这一路梯度回到 x₁ 后，还要与第二条 residual 公路上的梯度相加，才是 x₁ 的完整梯度。",
+          equation: "dX₁ = dX₁_direct + RMSNormBackward(dRMS2)",
+          shape: "[B,S,d] + [B,S,d] → [B,S,d]",
+          concept: "先分流、经过一大串 FFN 运算、再汇合；这是反向图最需要盯住的地方。",
+          tensors: [["ga", "rms2", "dRMS2"], ["ga", "residual1_ffn", "FFN path to x₁"], ["ga", "residual1_direct", "direct residual path"], ["ga", "residual1", "accumulated dX₁"], ["gp", "rms2_gamma", "dRMS2 gamma"]],
+        },
+        {
+          short: "residual 1 split", title: "第一条 residual 再次复制梯度", kicker: "BACKWARD 09 · BRANCH",
+          description: "x₁=x₀+attn_out，所以完整 dX₁ 一份直达 embedding，另一份进入 attention 输出支路。",
+          equation: "dX₀_direct = dX₁;  dAttnOut = dX₁",
+          shape: "[B,S,d] → 两个 [B,S,d]",
+          concept: "即使 attention 分支的梯度很复杂，主干仍有一份无需穿过 attention 的直达信号。",
+          tensors: [["ga", "residual1", "upstream dX₁"], ["ga", "embedding_direct", "direct path to embedding"], ["ga", "attn_out", "attention branch"]],
+        },
+        {
+          short: "Woᵀ", title: "梯度穿过输出投影并拆回多头", kicker: "BACKWARD 10 · ATTENTION OUTPUT",
+          description: "先用 Woᵀ 回到拼接前的 context，再按 hidden 维切成 h 个 head。切分只改变索引，不改变数值。",
+          equation: "dContext=dAttnOut·Woᵀ; dWo=Contextᵀ·dAttnOut",
+          shape: "[B,S,d] → [B,h,S,d_head]",
+          concept: "multi-head 的 concat/split 不是学习操作，只是张量布局的重组。",
+          tensors: [["ga", "attn_out", "dAttnOut"], ["gp", "W_o", "dWo"], ["ga", "context", "dContext"], ["ga", "context_heads", "dContext heads"]],
+        },
+        {
+          short: "A·V backward", title: "A·V 的反向同时流向 attention weight 和 V", kicker: "BACKWARD 11 · RETRIEVE",
+          description: "context=A·V，因此 dA 要乘 Vᵀ，dV 要乘 Aᵀ。然后 dA 再穿过每一行 softmax 得到 dScore。",
+          equation: "dA=dContext·Vᵀ; dV=Aᵀ·dContext; dScore=A⊙(dA−sum(dA⊙A))",
+          shape: "[B,h,S,d_head] → [B,h,S,S] 与 [B,h,S,d_head]",
+          concept: "mask 位置的 attention weight 为 0，所以它们的 score 梯度也为 0。",
+          tensors: [["ga", "context_heads", "dContext"], ["ga", "attention_weights", "dAttentionWeights"], ["ga", "v_repeated", "dRepeatedV"], ["ga", "causal_scores", "dScores"]],
+        },
+        {
+          short: "QKᵀ backward", title: "Score 矩阵把梯度送回 Q 和 K", kicker: "BACKWARD 12 · SCORE",
+          description: "scores=QKᵀ/√d_head，所以 dQ 用 dScore 混合 K，dK 用 dScoreᵀ 混合 Q。缩放因子在反向中依然存在。",
+          equation: "dQ=dScore·K/√d_head; dK=dScoreᵀ·Q/√d_head",
+          shape: "[B,h,S,S] → 两个 [B,h,S,d_head]",
+          concept: "Q 和 K 在前向里通过点积耦合，所以对一边求导时会用到另一边的前向值。",
+          tensors: [["ga", "causal_scores", "dScores"], ["a", "k_repeated", "forward K"], ["a", "q_rope", "forward Q"], ["ga", "q_rope", "dRoPE(Q)"], ["ga", "k_repeated", "dRepeatedK"]],
+        },
+        {
+          short: "GQA / RoPEᵀ", title: "GQA 梯度求和，RoPE 用逆旋转回传", kicker: "BACKWARD 13 · HEADS + POSITION",
+          description: "一个 KV head 被多个 query heads 共用，因此反向要把这些使用者的梯度相加。RoPE 是正交旋转，其反向就是乘转置，也就是逆向旋转。",
+          equation: "dK_kv = sum(shared query-head gradients);  dQ = Rᵀ dQ_rope",
+          shape: "[B,h,S,d_head] → [B,h_kv,S,d_head]",
+          concept: "前向的 broadcast 对应反向的 reduce-sum，这是并行计算里很常见的对称。",
+          tensors: [["ga", "k_repeated", "dRepeatedK"], ["ga", "k_rope", "reduced dK"], ["ga", "v_repeated", "dRepeatedV"], ["ga", "v_heads", "reduced dV"], ["ga", "q_heads", "inverse-RoPE dQ"], ["ga", "k_heads", "inverse-RoPE dK"]],
+        },
+        {
+          short: "QKV projectionsᵀ", title: "Q/K/V 三条投影的梯度回到同一个 RMSNorm 输出", kicker: "BACKWARD 14 · ACCUMULATE",
+          description: "每块投影都算出自己的权重梯度和输入梯度。因为 Q/K/V 都来自 rms1，三份输入梯度必须相加。",
+          equation: "dRMS1 = dQ·Wqᵀ + dK·Wkᵀ + dV·Wvᵀ",
+          shape: "三条 [B,S,d] → [B,S,d]",
+          concept: "一个张量被读三次，反向时就必须累加三份梯度；遗漏任何一路都是错的。",
+          tensors: [["ga", "q_linear", "dQ linear"], ["ga", "k_linear", "dK linear"], ["ga", "v_linear", "dV linear"], ["gp", "W_q", "dWq"], ["gp", "W_k", "dWk"], ["gp", "W_v", "dWv"], ["ga", "rms1", "accumulated dRMS1"]],
+        },
+        {
+          short: "RMSNorm 1 / embedding", title: "最后一次汇合回到 embedding 参数表", kicker: "BACKWARD 15 · INPUT",
+          description: "attention 支路穿过第一次 RMSNorm 后，与第一条 residual 的直达梯度相加。随后按 token id 把梯度 scatter-add 到 embedding table 对应的行。",
+          equation: "dEmbedding = dResidualDirect + dAttentionPath;  dE[token] += dEmbedding",
+          shape: "[B,S,d] → [V,d] 的稀疏行更新",
+          concept: "一个 token id 在 batch 或序列中重复出现时，它们会共同更新 embedding table 的同一行。反向到此闭环。",
+          tensors: [["ga", "rms1", "dRMS1"], ["ga", "embedding_attention", "attention path"], ["ga", "embedding_direct", "residual path"], ["ga", "embedding", "accumulated dEmbedding"], ["gp", "rms1_gamma", "dRMS1 gamma"], ["gp", "embedding_table", "dEmbedding table"]],
+        },
+      ];
+
+      const elements = {
+        preset: document.getElementById("preset-select"), seed: document.getElementById("seed-input"),
+        regenerate: document.getElementById("regenerate-button"), previous: document.getElementById("previous-button"),
+        next: document.getElementById("next-button"), play: document.getElementById("play-button"),
+        learningRate: document.getElementById("lr-input"), sgd: document.getElementById("sgd-button"),
+        config: document.getElementById("config-strip"), update: document.getElementById("update-banner"),
+        error: document.getElementById("error-box"), pipeline: document.getElementById("pipeline"),
+        pipelineTitle: document.getElementById("pipeline-title"), stepCounter: document.getElementById("step-counter"),
+        kicker: document.getElementById("detail-kicker"), title: document.getElementById("detail-title"),
+        description: document.getElementById("detail-description"), equation: document.getElementById("detail-equation"),
+        shape: document.getElementById("detail-shape"), concept: document.getElementById("concept-note"),
+        sequence: document.getElementById("sequence-preview"), tensor: document.getElementById("tensor-select"),
+        batchField: document.getElementById("batch-field"), batch: document.getElementById("batch-select"),
+        headField: document.getElementById("head-field"), head: document.getElementById("head-select"),
+        meta: document.getElementById("matrix-meta"), grid: document.getElementById("matrix-grid"),
+        pager: document.getElementById("pager-status"), previousRows: document.getElementById("previous-rows"),
+        nextRows: document.getElementById("next-rows"), previousColumns: document.getElementById("previous-columns"),
+        nextColumns: document.getElementById("next-columns"), viewport: document.getElementById("matrix-viewport"),
+      };
+
+      let result;
+      let mode = "forward";
+      let stepIndex = 0;
+      let selectedTensorIndex = 0;
+      let batchIndex = 0;
+      let headIndex = 0;
+      let rowPage = 0;
+      let columnPage = 0;
+      let timer = null;
+      const pageRows = 12;
+      const pageColumns = 12;
+
+      function currentSteps() { return mode === "forward" ? FORWARD_STEPS : BACKWARD_STEPS; }
+      function currentStep() { return currentSteps()[stepIndex]; }
+
+      function resolveTensor(reference) {
+        const [source, key, label] = reference;
+        const sources = {
+          a: result.activations,
+          p: result.parameters,
+          ga: result.gradients.activations,
+          gp: result.gradients.parameters,
+        };
+        const tensor = sources[source][key];
+        if (!tensor) throw new Error(`找不到张量 ${source}:${key}`);
+        return { tensor, label, source, key };
+      }
+
+      function stopPlayback() {
+        if (timer !== null) window.clearInterval(timer);
+        timer = null;
+        elements.play.textContent = "▶ 播放";
+      }
+
+      function runModel() {
+        stopPlayback();
+        try {
+          const preset = Engine.PRESETS[elements.preset.value];
+          const seed = Math.max(1, Math.floor(Number(elements.seed.value) || 42));
+          elements.seed.value = seed;
+          result = Engine.run(preset, seed);
+          stepIndex = 0;
+          selectedTensorIndex = 0;
+          batchIndex = 0;
+          headIndex = 0;
+          rowPage = 0;
+          columnPage = 0;
+          elements.update.classList.remove("visible");
+          elements.error.style.display = "none";
+          renderAll();
+        } catch (error) {
+          showError(error);
+        }
+      }
+
+      function renderAll() {
+        renderConfig();
+        renderPipeline();
+        renderStep();
+      }
+
+      function renderConfig() {
+        const c = result.config;
+        const values = [
+          ["batch B", c.batch], ["sequence S", c.seq], ["hidden d", c.hidden], ["heads h/h_kv", `${c.heads}/${c.kvHeads}`],
+          ["d_head", result.headDim], ["d_ff", c.intermediate], ["vocab V", c.vocab], ["参数量", result.parameterCount.toLocaleString("zh-CN")],
+        ];
+        elements.config.innerHTML = values.map(([label, value]) => (
+          `<div class="config-item"><span>${label}</span><strong>${value}</strong></div>`
+        )).join("");
+      }
+
+      function renderPipeline() {
+        const steps = currentSteps();
+        elements.pipelineTitle.textContent = mode === "forward" ? "前向数据流" : "反向梯度流";
+        elements.stepCounter.textContent = `${String(stepIndex + 1).padStart(2, "0")} / ${steps.length}`;
+        elements.pipeline.innerHTML = "";
+        steps.forEach((step, index) => {
+          if (index > 0) {
+            const arrow = document.createElement("span");
+            arrow.className = `arrow${index <= stepIndex ? " complete" : ""}`;
+            arrow.setAttribute("aria-hidden", "true");
+            arrow.textContent = "→";
+            elements.pipeline.appendChild(arrow);
+          }
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `stage-button${index < stepIndex ? " complete" : ""}${index === stepIndex ? " active" : ""}`;
+          button.innerHTML = `<small>${String(index + 1).padStart(2, "0")}</small><span>${step.short}</span>`;
+          button.setAttribute("aria-current", index === stepIndex ? "step" : "false");
+          button.addEventListener("click", () => selectStep(index));
+          elements.pipeline.appendChild(button);
+        });
+        const active = elements.pipeline.querySelector(".active");
+        if (active) active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        elements.previous.disabled = stepIndex === 0;
+        elements.next.disabled = stepIndex === steps.length - 1;
+      }
+
+      function renderStep() {
+        const step = currentStep();
+        elements.kicker.textContent = step.kicker;
+        elements.title.textContent = step.title;
+        elements.description.textContent = step.description;
+        elements.equation.textContent = step.equation;
+        elements.shape.innerHTML = `<strong>形状：</strong>${step.shape}`;
+        elements.concept.textContent = step.concept;
+        renderSequencePreview();
+        renderTensorChoices();
+      }
+
+      function renderSequencePreview() {
+        if (mode !== "forward" || stepIndex !== 0) {
+          elements.sequence.style.display = "none";
+          return;
+        }
+        const ids = result.activations.token_ids;
+        const targets = result.activations.target_ids;
+        const c = result.config;
+        const inputWords = [];
+        const targetWords = [];
+        for (let position = 0; position < c.seq; position += 1) {
+          inputWords.push(result.vocabulary[ids.data[position]]);
+          targetWords.push(result.vocabulary[targets.data[position]]);
+        }
+        elements.sequence.style.display = "block";
+        elements.sequence.innerHTML = `<strong>batch 0 教学序列</strong><br><code>${escapeHtml(inputWords.join(" → "))}</code><br>目标：<code>${escapeHtml(targetWords.join(" → "))}</code>`;
+      }
+
+      function renderTensorChoices() {
+        const tensors = currentStep().tensors;
+        selectedTensorIndex = Math.min(selectedTensorIndex, tensors.length - 1);
+        elements.tensor.innerHTML = tensors.map((reference, index) => {
+          const resolved = resolveTensor(reference);
+          return `<option value="${index}"${index === selectedTensorIndex ? " selected" : ""}>${escapeHtml(resolved.label)} · [${resolved.tensor.shape.join(", ")}]</option>`;
+        }).join("");
+        batchIndex = 0;
+        headIndex = 0;
+        rowPage = 0;
+        columnPage = 0;
+        renderMatrix();
+      }
+
+      function tensorView(tensor) {
+        const shape = tensor.shape;
+        if (shape.length === 1) return { rows: 1, columns: shape[0], value: (row, column) => tensor.data[column], rowLabel: () => "0", columnLabel: (column) => String(column) };
+        if (shape.length === 2) return {
+          rows: shape[0], columns: shape[1], value: (row, column) => tensor.data[row * shape[1] + column],
+          rowLabel: (row) => String(row), columnLabel: (column) => String(column),
+        };
+        if (shape.length === 3) return {
+          rows: shape[1], columns: shape[2], value: (row, column) => tensor.data[(batchIndex * shape[1] + row) * shape[2] + column],
+          rowLabel: (row) => `s${row}`, columnLabel: (column) => `d${column}`,
+        };
+        if (shape.length === 4) return {
+          rows: shape[2], columns: shape[3], value: (row, column) => tensor.data[((batchIndex * shape[1] + headIndex) * shape[2] + row) * shape[3] + column],
+          rowLabel: (row) => `s${row}`, columnLabel: (column) => shape[2] === shape[3] ? `s${column}` : `d${column}`,
+        };
+        throw new Error(`界面暂不支持 ${shape.length} 维张量`);
+      }
+
+      function renderMatrix() {
+        try {
+          const resolved = resolveTensor(currentStep().tensors[selectedTensorIndex]);
+          const tensor = resolved.tensor;
+          renderSliceControls(tensor);
+          const view = tensorView(tensor);
+          const rowPages = Math.max(1, Math.ceil(view.rows / pageRows));
+          const columnPages = Math.max(1, Math.ceil(view.columns / pageColumns));
+          rowPage = Math.min(rowPage, rowPages - 1);
+          columnPage = Math.min(columnPage, columnPages - 1);
+          const rowStart = rowPage * pageRows;
+          const rowEnd = Math.min(view.rows, rowStart + pageRows);
+          const columnStart = columnPage * pageColumns;
+          const columnEnd = Math.min(view.columns, columnStart + pageColumns);
+          const stats = Engine.tensorStats(tensor);
+          const maxAbs = Math.max(Math.abs(stats.min || 0), Math.abs(stats.max || 0), 1e-12);
+          elements.meta.innerHTML = [
+            `<span>形状 <strong>[${tensor.shape.join(", ")}]</strong></span>`,
+            `<span>elements <strong>${tensor.data.length.toLocaleString("zh-CN")}</strong></span>`,
+            `<span>min <strong>${formatNumber(stats.min, 5)}</strong></span>`,
+            `<span>max <strong>${formatNumber(stats.max, 5)}</strong></span>`,
+            `<span>mean <strong>${formatNumber(stats.mean, 5)}</strong></span>`,
+            `<span>RMS <strong>${formatNumber(stats.rms, 5)}</strong></span>`,
+          ].join("");
+          elements.grid.style.gridTemplateColumns = `repeat(${columnEnd - columnStart + 1}, minmax(62px, 1fr))`;
+          const fragment = document.createDocumentFragment();
+          fragment.appendChild(axisCell("", "corner"));
+          for (let column = columnStart; column < columnEnd; column += 1) fragment.appendChild(axisCell(view.columnLabel(column), "column"));
+          for (let row = rowStart; row < rowEnd; row += 1) {
+            fragment.appendChild(axisCell(view.rowLabel(row), "row"));
+            for (let column = columnStart; column < columnEnd; column += 1) {
+              const value = view.value(row, column);
+              const cell = document.createElement("div");
+              const masked = value === -Infinity;
+              cell.className = `matrix-cell${masked ? " masked" : value > 0 ? " positive" : value < 0 ? " negative" : ""}`;
+              if (!masked && value !== 0) {
+                const intensity = Math.min(72, 10 + 62 * Math.sqrt(Math.abs(value) / maxAbs));
+                cell.style.setProperty("--heat", `${intensity}%`);
+              }
+              cell.textContent = formatNumber(value, 3);
+              const indexLabel = tensor.shape.length === 4
+                ? `[${batchIndex},${headIndex},${row},${column}]`
+                : tensor.shape.length === 3 ? `[${batchIndex},${row},${column}]` : `[${row},${column}]`;
+              cell.setAttribute("role", "gridcell");
+              cell.setAttribute("aria-label", `${resolved.label}${indexLabel} = ${formatNumber(value, 9)}`);
+              cell.title = `${resolved.label}${indexLabel} = ${formatNumber(value, 9)}`;
+              fragment.appendChild(cell);
+            }
+          }
+          elements.grid.replaceChildren(fragment);
+          elements.pager.textContent = `行 ${rowStart + 1}–${rowEnd}/${view.rows} · 列 ${columnStart + 1}–${columnEnd}/${view.columns}`;
+          elements.previousRows.disabled = rowPage === 0;
+          elements.nextRows.disabled = rowPage >= rowPages - 1;
+          elements.previousColumns.disabled = columnPage === 0;
+          elements.nextColumns.disabled = columnPage >= columnPages - 1;
+          elements.error.style.display = "none";
+        } catch (error) {
+          showError(error);
+        }
+      }
+
+      function renderSliceControls(tensor) {
+        const shape = tensor.shape;
+        elements.batchField.style.display = shape.length >= 3 ? "grid" : "none";
+        elements.headField.style.display = shape.length === 4 ? "grid" : "none";
+        if (shape.length >= 3) {
+          batchIndex = Math.min(batchIndex, shape[0] - 1);
+          elements.batch.innerHTML = Array.from({ length: shape[0] }, (_, index) => `<option value="${index}"${index === batchIndex ? " selected" : ""}>batch ${index}</option>`).join("");
+        }
+        if (shape.length === 4) {
+          headIndex = Math.min(headIndex, shape[1] - 1);
+          elements.head.innerHTML = Array.from({ length: shape[1] }, (_, index) => `<option value="${index}"${index === headIndex ? " selected" : ""}>head ${index}</option>`).join("");
+        }
+      }
+
+      function axisCell(text, extraClass) {
+        const cell = document.createElement("div");
+        cell.className = `matrix-axis ${extraClass}`;
+        cell.textContent = text;
+        cell.setAttribute("role", "columnheader");
+        return cell;
+      }
+
+      function selectStep(index) {
+        stopPlayback();
+        stepIndex = Math.max(0, Math.min(index, currentSteps().length - 1));
+        selectedTensorIndex = 0;
+        renderPipeline();
+        renderStep();
+      }
+
+      function changeMode(nextMode) {
+        stopPlayback();
+        mode = nextMode;
+        stepIndex = 0;
+        selectedTensorIndex = 0;
+        document.querySelectorAll(".mode-button").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+        });
+        renderPipeline();
+        renderStep();
+      }
+
+      function executeSgd() {
+        try {
+          stopPlayback();
+          const learningRate = Number(elements.learningRate.value);
+          const update = Engine.sgdStep(result, learningRate);
+          result = update.after;
+          const direction = update.delta < 0 ? "下降" : "上升";
+          elements.update.innerHTML = `<span>参数已按 <code>θ ← θ − ${learningRate}·∇θ</code> 更新，loss ${direction}。</span><strong>${update.before.loss.toFixed(6)} → ${update.after.loss.toFixed(6)} (${update.delta >= 0 ? "+" : ""}${update.delta.toFixed(6)})</strong>`;
+          elements.update.classList.add("visible");
+          renderAll();
+        } catch (error) {
+          showError(error);
+        }
+      }
+
+      function showError(error) {
+        elements.error.style.display = "block";
+        elements.error.textContent = `演示遇到错误：${error && error.message ? error.message : error}`;
+        console.error(error);
+      }
+
+      function formatNumber(value, digits) {
+        if (value === -Infinity) return "−∞";
+        if (value === Infinity) return "+∞";
+        if (Number.isNaN(value)) return "NaN";
+        if (value === 0) return "0";
+        const absolute = Math.abs(value);
+        if (absolute >= 1000 || absolute < Math.pow(10, -digits)) return value.toExponential(Math.min(3, digits));
+        return value.toFixed(digits).replace(/\.?0+$/, "");
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]);
+      }
+
+      elements.regenerate.addEventListener("click", runModel);
+      elements.previous.addEventListener("click", () => selectStep(stepIndex - 1));
+      elements.next.addEventListener("click", () => selectStep(stepIndex + 1));
+      elements.play.addEventListener("click", () => {
+        if (timer !== null) { stopPlayback(); return; }
+        elements.play.textContent = "⏸ 暂停";
+        if (stepIndex === currentSteps().length - 1) selectStep(0);
+        timer = window.setInterval(() => {
+          if (stepIndex >= currentSteps().length - 1) { stopPlayback(); return; }
+          stepIndex += 1;
+          selectedTensorIndex = 0;
+          renderPipeline();
+          renderStep();
+        }, 1250);
+      });
+      elements.sgd.addEventListener("click", executeSgd);
+      document.querySelectorAll(".mode-button").forEach((button) => button.addEventListener("click", () => changeMode(button.dataset.mode)));
+      elements.tensor.addEventListener("change", () => {
+        selectedTensorIndex = Number(elements.tensor.value); batchIndex = 0; headIndex = 0; rowPage = 0; columnPage = 0; renderMatrix();
+      });
+      elements.batch.addEventListener("change", () => { batchIndex = Number(elements.batch.value); rowPage = 0; columnPage = 0; renderMatrix(); });
+      elements.head.addEventListener("change", () => { headIndex = Number(elements.head.value); rowPage = 0; columnPage = 0; renderMatrix(); });
+      elements.previousRows.addEventListener("click", () => { rowPage -= 1; renderMatrix(); });
+      elements.nextRows.addEventListener("click", () => { rowPage += 1; renderMatrix(); });
+      elements.previousColumns.addEventListener("click", () => { columnPage -= 1; renderMatrix(); });
+      elements.nextColumns.addEventListener("click", () => { columnPage += 1; renderMatrix(); });
+      elements.preset.addEventListener("change", runModel);
+      window.addEventListener("error", (event) => showError(event.error || event.message));
+
+      if (!Engine) {
+        showError(new Error("未能加载 L12_tensor_engine.js，请确认两个文件位于同一目录。"));
+        return;
+      }
+      runModel();
+    })();
+  </script>
+</body>
+</html>
