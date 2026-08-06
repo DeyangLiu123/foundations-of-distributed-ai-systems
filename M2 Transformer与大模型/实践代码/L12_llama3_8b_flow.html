@@ -85,8 +85,14 @@
     }
     h1 { margin: 0; font-size: clamp(26px, 4vw, 42px); letter-spacing: -0.035em; }
     .hero p { max-width: 760px; margin: 10px 0 0; color: var(--muted); line-height: 1.65; }
-    .truth-chip {
+    .hero-side {
+      display: flex;
       flex: 0 0 auto;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .truth-chip {
       padding: 10px 13px;
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -96,6 +102,29 @@
       white-space: nowrap;
     }
     .truth-chip strong { color: var(--primary-strong); }
+    .dag-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid color-mix(in srgb, var(--primary) 55%, var(--border));
+      border-radius: 10px;
+      color: var(--primary-strong);
+      background: var(--primary-soft);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    }
+    .dag-link:hover {
+      border-color: var(--primary);
+      background: color-mix(in srgb, var(--primary-soft) 72%, var(--surface));
+      transform: translateY(-1px);
+    }
+    .dag-link:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent);
+      outline-offset: 2px;
+    }
 
     .toolbar, .pipeline-card, .detail-card, .matrix-card {
       background: var(--surface);
@@ -348,6 +377,7 @@
     @media (max-width: 620px) {
       .app { padding: 14px; }
       .hero { align-items: flex-start; flex-direction: column; gap: 12px; }
+      .hero-side { align-items: stretch; width: 100%; }
       .truth-chip { white-space: normal; }
       .toolbar { align-items: stretch; }
       .spacer { display: none; }
@@ -372,7 +402,10 @@
         <h1>看见真实矩阵如何穿过 Transformer</h1>
         <p>不是形状占位符：每个数值都由当前配置现算。从 token 到 loss 走一遍前向，再让梯度沿同一张图回来。</p>
       </div>
-      <div class="truth-chip"><strong>Float64 真实计算</strong> · 界面仅显示取整</div>
+      <div class="hero-side">
+        <a class="dag-link" href="L12_transformer_stream.html">查看全局执行 DAG →</a>
+        <div class="truth-chip"><strong>Float64 真实计算</strong> · 界面仅显示取整</div>
+      </div>
     </header>
 
     <section class="toolbar" aria-label="演示控制">
