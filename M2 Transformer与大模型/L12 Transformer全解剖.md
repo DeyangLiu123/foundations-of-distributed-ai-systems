@@ -82,6 +82,8 @@ flowchart TB
 
 > [!tip] 想「看到」这条数据流？
 > 想把这张图纸真正跑起来？打开 [[实践代码/L12_llama3_8b_flow.html|交互矩阵演示]]（浏览器直接打开）。它使用一个尺寸适中的单层 decoder-only 模型：默认 $B=2,S=8,d=32,h=4,h_{kv}=2,d_{ff}=112,V=64$，保留 GQA、RoPE 和 SwiGLU 的形状关系。按「前向」和「反向」逐步前进，每个节点都可以查看真实矩阵；还可以选择 batch/head 切片、分页查看大矩阵，并执行一步 SGD 观察 loss 如何变化。另有紧凑和扩展两档尺寸可选，用来观察 batch、$S^2$ 和 $d_{ff}$ 对张量的影响。
+>
+> 想先从全局看 residual stream？打开 [[实践代码/L12_transformer_stream.html|全局 Stream 平铺页]]：同一次计算的所有 activation、参数矩阵和梯度卡片会按 stage 排在一张横向画布上；点击任一卡片可展开完整数值矩阵。
 
 两个子层（attention、FFN）共用同一个模式：
 

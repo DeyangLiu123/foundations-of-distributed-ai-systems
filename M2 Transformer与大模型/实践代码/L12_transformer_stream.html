@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>L12 Transformer 全局 Stream</title>
+  <style>
+    :root {
+      --bg: #f5f7f3;
+      --surface: #ffffff;
+      --surface-2: #edf2ed;
+      --surface-3: #e1e9e2;
+      --text: #1d2922;
+      --muted: #68756d;
+      --border: #cfdad1;
+      --primary: #117052;
+      --primary-soft: #d9eee4;
+      --primary-strong: #07563d;
+      --activation: #2b82c9;
+      --parameter: #8b5ab5;
+      --gradient: #d66b3f;
+      --residual: #c49331;
+      --loss: #b64767;
+      --positive: #2563eb;
+      --negative: #dc2626;
+      --shadow: 0 10px 28px rgba(36, 52, 42, 0.08);
+      --radius: 14px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101612;
+        --surface: #18221b;
+        --surface-2: #202d24;
+        --surface-3: #2a392e;
+        --text: #edf5ef;
+        --muted: #a8b7aa;
+        --border: #3a4b3e;
+        --primary: #70d5ae;
+        --primary-soft: #183f2f;
+        --primary-strong: #a4ecd0;
+        --activation: #70baf0;
+        --parameter: #c59be5;
+        --gradient: #f19a70;
+        --residual: #f2ca69;
+        --loss: #fb8dab;
+        --positive: #60a5fa;
+        --negative: #fb7185;
+        --shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    button, input, select { font: inherit; }
+    button, select, input[type="number"] { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
+    button { cursor: pointer; }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 35%, transparent); outline-offset: 2px; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+    .page { width: min(1800px, 100%); margin: 0 auto; padding: 22px; }
+    .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+    .eyebrow { margin: 0 0 6px; color: var(--primary-strong); font-size: 12px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 44px); letter-spacing: -0.04em; }
+    .hero p { max-width: 920px; margin: 9px 0 0; color: var(--muted); line-height: 1.6; }
+    .back-link { color: var(--primary-strong); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .back-link:hover { text-decoration: underline; }
+    .toolbar, .overview-strip, .stream-shell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 13px; margin-bottom: 12px; }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--muted); font-size: 11px; }
+    .field select, .field input { min-height: 36px; padding: 6px 9px; }
+    .seed { width: 86px; }
+    .toolbar button { min-height: 36px; padding: 6px 11px; }
+    .mode-button[aria-pressed="true"], .primary-button { border-color: var(--primary); background: var(--primary); color: var(--bg); font-weight: 700; }
+    @media (prefers-color-scheme: dark) { .mode-button[aria-pressed="true"], .primary-button { color: #0e1a13; } }
+    .spacer { flex: 1 1 20px; }
+    .overview-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 15px; padding: 12px 15px; margin-bottom: 12px; }
+    .overview-strip strong { font-family: var(--mono); }
+    .overview-strip small { color: var(--muted); }
+    .coverage { margin-left: auto; color: var(--primary-strong); font-family: var(--mono); font-size: 12px; }
+    .coverage.bad { color: var(--loss); }
+    .legend { display: flex; flex-wrap: wrap; gap: 9px 14px; color: var(--muted); font-size: 12px; }
+    .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--activation); }
+    .legend .parameter::before { background: var(--parameter); }
+    .legend .gradient::before { background: var(--gradient); }
+    .legend .residual::before { background: var(--residual); }
+    .legend .loss::before { background: var(--loss); }
+
+    .stream-shell { overflow: hidden; }
+    .rail-wrap { overflow-x: auto; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+    .rail { display: grid; grid-template-columns: repeat(6, minmax(236px, 1fr)); width: max(100%, 1480px); min-width: 1480px; padding: 12px 16px 10px; gap: 12px; }
+    .rail-item { position: relative; min-height: 42px; padding: 7px 10px; border-left: 3px solid var(--primary); color: var(--primary-strong); font-size: 12px; font-weight: 700; }
+    .rail-item::after { content: "→"; position: absolute; right: -19px; top: 8px; color: var(--primary); font-family: var(--mono); font-size: 18px; }
+    .rail-item:last-child::after { display: none; }
+    .rail-item small { display: block; margin-top: 3px; color: var(--muted); font-weight: 400; }
+    .board-viewport { overflow-x: auto; overflow-y: hidden; padding: 16px; }
+    .board { display: grid; grid-template-columns: repeat(6, 236px); gap: 12px; min-width: 1480px; align-items: start; }
+    .stage { min-width: 0; }
+    .stage-header { min-height: 69px; margin-bottom: 8px; padding: 11px 12px; border-radius: 11px; background: var(--surface-2); border-top: 3px solid var(--primary); }
+    .stage-header small { color: var(--muted); font-family: var(--mono); }
+    .stage-header h2 { margin: 4px 0 2px; font-size: 16px; }
+    .stage-header p { margin: 0; color: var(--muted); font-size: 11px; }
+    .cards { display: grid; gap: 8px; }
+    .matrix-card { width: 100%; padding: 9px; border: 1px solid var(--border); border-left: 4px solid var(--activation); border-radius: 11px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 3px 9px rgba(25, 40, 29, 0.05); transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease; }
+    .matrix-card:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 8px 17px rgba(25, 40, 29, 0.12); }
+    .matrix-card.parameter { border-left-color: var(--parameter); }
+    .matrix-card.gradient, .matrix-card.parameter-gradient { border-left-color: var(--gradient); }
+    .matrix-card.residual { border-left-color: var(--residual); }
+    .matrix-card.loss { border-left-color: var(--loss); }
+    .card-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .card-top h3 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .card-kind { flex: 0 0 auto; color: var(--muted); font-size: 10px; font-family: var(--mono); }
+    .shape { margin-top: 3px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .thumbnail { display: block; width: 100%; height: 88px; margin-top: 7px; border-radius: 7px; background: var(--surface-2); }
+    .card-stats { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; color: var(--muted); font-family: var(--mono); font-size: 9px; }
+    .card-stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stream-arrow { display: none; }
+    .empty { padding: 18px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: 12px; }
+    footer { padding: 18px 4px 8px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    dialog { width: min(1000px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 24px 70px rgba(0,0,0,0.28); }
+    dialog::backdrop { background: rgba(10, 18, 12, 0.55); backdrop-filter: blur(2px); }
+    .detail { padding: 18px; }
+    .detail-header { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
+    .detail-header h2 { margin: 0; font-size: 22px; }
+    .detail-header p { margin: 6px 0 0; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .close { min-width: 35px; min-height: 35px; padding: 4px 9px; }
+    .detail-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin: 15px 0 11px; }
+    .detail-controls .field select { min-width: 120px; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 7px 15px; margin-bottom: 10px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .detail-meta strong { color: var(--text); }
+    .detail-viewport { max-height: 57vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+    .detail-grid { display: grid; width: max-content; min-width: 100%; padding: 6px; gap: 2px; }
+    .detail-cell, .detail-axis { display: flex; align-items: center; justify-content: center; min-width: 62px; height: 34px; border-radius: 4px; padding: 2px 4px; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .detail-axis { position: sticky; z-index: 2; background: var(--surface-3); color: var(--muted); font-weight: 700; }
+    .detail-axis.col { top: 6px; }
+    .detail-axis.row { left: 6px; }
+    .detail-axis.corner { top: 6px; left: 6px; z-index: 3; }
+    .detail-cell { background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+    .detail-cell.positive { background: color-mix(in srgb, var(--positive) var(--heat), var(--surface)); }
+    .detail-cell.negative { background: color-mix(in srgb, var(--negative) var(--heat), var(--surface)); }
+    .detail-cell.masked { background: var(--surface-3); color: var(--muted); }
+    .detail-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
+    .pager { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .error { display: none; margin: 12px 0; padding: 11px; border: 1px solid var(--loss); border-radius: 9px; color: var(--loss); white-space: pre-wrap; }
+    @media (max-width: 760px) {
+      .page { padding: 14px; }
+      .hero { align-items: start; flex-direction: column; }
+      .toolbar { align-items: stretch; }
+      .spacer { display: none; }
+      .coverage { margin-left: 0; width: 100%; }
+      .rail-wrap { overflow: hidden; }
+      .rail { grid-template-columns: 1fr; width: auto; min-width: 0; }
+      .rail-item::after { content: "↓"; right: 8px; }
+      .board-viewport { padding: 12px; }
+      .board { grid-template-columns: 1fr; min-width: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="page" id="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">L12 · Global Stream Overview</p>
+        <h1>把 Transformer 的所有矩阵摊在一张图上</h1>
+        <p>这里不追踪一个节点，而是把同一次计算的每个张量都摆到对应的 stage 里：看 residual stream 贯穿哪里，看 attention 和 FFN 从哪里取数、把什么写回，再切到反向观察梯度沿原路返回。</p>
+      </div>
+      <a class="back-link" href="L12_llama3_8b_flow.html">← 回到逐步解释页</a>
+    </header>
+
+    <section class="toolbar" aria-label="全局视图控制">
+      <div class="field"><label for="preset">模型尺寸</label><select id="preset"><option value="compact">紧凑 · B1 S6 d16</option><option value="standard" selected>标准 · B2 S8 d32</option><option value="expanded">扩展 · B4 S16 d64</option></select></div>
+      <div class="field"><label for="seed">随机种子</label><input class="seed" id="seed" type="number" min="1" max="999999" value="42"></div>
+      <button type="button" id="regenerate" class="primary-button">重算全部矩阵</button>
+      <div class="spacer"></div>
+      <div class="legend" aria-label="矩阵类型图例"><span>激活值</span><span class="parameter">参数</span><span class="gradient">梯度</span><span class="residual">残差流</span><span class="loss">loss</span></div>
+      <div class="mode-buttons"><button type="button" class="mode-button" data-mode="forward" aria-pressed="true">前向全览</button><button type="button" class="mode-button" data-mode="backward" aria-pressed="false">反向梯度</button></div>
+    </section>
+
+    <section class="overview-strip" aria-label="当前模型信息">
+      <span><small>B</small> <strong id="config-b">–</strong></span>
+      <span><small>S</small> <strong id="config-s">–</strong></span>
+      <span><small>d</small> <strong id="config-d">–</strong></span>
+      <span><small>h/h<sub>kv</sub></small> <strong id="config-heads">–</strong></span>
+      <span><small>d<sub>ff</sub></small> <strong id="config-ff">–</strong></span>
+      <span><small>V</small> <strong id="config-vocab">–</strong></span>
+      <span><small>parameters</small> <strong id="config-params">–</strong></span>
+      <span class="coverage" id="coverage">checking registry…</span>
+    </section>
+
+    <section class="stream-shell">
+      <div class="rail-wrap">
+        <div class="rail" id="rail" aria-label="residual stream rail"></div>
+      </div>
+      <div class="board-viewport">
+        <div class="board" id="board" aria-label="all tensors in the Transformer stream"></div>
+      </div>
+    </section>
+
+    <div class="error" id="error" role="alert"></div>
+    <footer>缩略图使用当前真实张量的 min/max 映射颜色；点击任一卡片可查看完整数值和索引。4D 张量默认显示 batch 0、head 0，切片不会改变计算结果。</footer>
+  </main>
+
+  <dialog id="matrix-dialog" aria-labelledby="detail-title">
+    <div class="detail">
+      <div class="detail-header"><div><h2 id="detail-title">矩阵详情</h2><p id="detail-subtitle"></p></div><button type="button" class="close" id="close-dialog" aria-label="关闭矩阵详情">×</button></div>
+      <div class="detail-controls">
+        <div class="field" id="detail-batch-field"><label for="detail-batch">batch 切片</label><select id="detail-batch"></select></div>
+        <div class="field" id="detail-head-field"><label for="detail-head">head 切片</label><select id="detail-head"></select></div>
+      </div>
+      <div class="detail-meta" id="detail-meta"></div>
+      <div class="detail-viewport"><div class="detail-grid" id="detail-grid" role="grid" aria-label="完整矩阵数值"></div></div>
+      <div class="detail-footer"><div class="mode-buttons"><button type="button" id="detail-prev-row">上一组行</button><button type="button" id="detail-next-row">下一组行</button><button type="button" id="detail-prev-col">上一组列</button><button type="button" id="detail-next-col">下一组列</button></div><span class="pager" id="detail-pager"></span></div>
+    </div>
+  </dialog>
+
+  <script src="L12_tensor_engine.js"></script>
+  <script src="L12_stream_registry.js"></script>
+  <script>
+    (function startOverview() {
+      "use strict";
+      const Engine = window.L12Engine;
+      const Registry = window.L12StreamRegistry;
+      const $ = (id) => document.getElementById(id);
+      const el = {
+        preset: $("preset"), seed: $("seed"), regenerate: $("regenerate"), modeButtons: [...document.querySelectorAll(".mode-button[data-mode]")],
+        rail: $("rail"), board: $("board"), coverage: $("coverage"), error: $("error"), dialog: $("matrix-dialog"),
+        close: $("close-dialog"), detailTitle: $("detail-title"), detailSubtitle: $("detail-subtitle"), detailBatchField: $("detail-batch-field"),
+        detailBatch: $("detail-batch"), detailHeadField: $("detail-head-field"), detailHead: $("detail-head"), detailMeta: $("detail-meta"),
+        detailGrid: $("detail-grid"), detailPager: $("detail-pager"), detailPrevRow: $("detail-prev-row"), detailNextRow: $("detail-next-row"),
+        detailPrevCol: $("detail-prev-col"), detailNextCol: $("detail-next-col"),
+      };
+      let mode = "forward";
+      let result;
+      let detail = null;
+      let detailBatch = 0;
+      let detailHead = 0;
+      let detailRowPage = 0;
+      let detailColumnPage = 0;
+      const pageRows = 12;
+      const pageColumns = 14;
+
+      function sourceMap() { return mode === "forward" ? { a: result.activations, p: result.parameters } : { ga: result.gradients.activations, gp: result.gradients.parameters }; }
+      function resolve(entry) {
+        const tensor = sourceMap()[entry.source]?.[entry.key];
+        if (!tensor) throw new Error(`missing ${entry.source}:${entry.key}`);
+        return tensor;
+      }
+      function format(value, digits = 3) {
+        if (value === -Infinity) return "−∞";
+        if (value === Infinity) return "+∞";
+        if (Number.isNaN(value)) return "NaN";
+        if (value === 0) return "0";
+        if (Math.abs(value) >= 1000 || Math.abs(value) < Math.pow(10, -digits)) return value.toExponential(Math.min(3, digits));
+        return value.toFixed(digits).replace(/\.?0+$/, "");
+      }
+      function safeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;" })[c]); }
+      function kindLabel(kind) { return { parameter: "PARAM", "parameter-gradient": "dPARAM", gradient: "GRAD", residual: "RESIDUAL", loss: "LOSS", input: "INPUT" }[kind] || "ACT"; }
+      function statText(tensor) { const stats = Engine.tensorStats(tensor); return `min ${format(stats.min, 2)} · max ${format(stats.max, 2)} · RMS ${format(stats.rms, 2)}`; }
+      function matrixView(tensor, batch = 0, head = 0) {
+        const shape = tensor.shape;
+        if (shape.length === 1) return { rows: 1, columns: shape[0], value: (_, column) => tensor.data[column], rowLabel: () => "0", columnLabel: (c) => String(c) };
+        if (shape.length === 2) return { rows: shape[0], columns: shape[1], value: (row, column) => tensor.data[row * shape[1] + column], rowLabel: (r) => String(r), columnLabel: (c) => String(c) };
+        if (shape.length === 3) return { rows: shape[1], columns: shape[2], value: (row, column) => tensor.data[(batch * shape[1] + row) * shape[2] + column], rowLabel: (r) => `s${r}`, columnLabel: (c) => `d${c}` };
+        if (shape.length === 4) return { rows: shape[2], columns: shape[3], value: (row, column) => tensor.data[((batch * shape[1] + head) * shape[2] + row) * shape[3] + column], rowLabel: (r) => `s${r}`, columnLabel: (c) => shape[2] === shape[3] ? `s${c}` : `d${c}` };
+        throw new Error(`unsupported tensor rank ${shape.length}`);
+      }
+      function drawThumbnail(canvas, tensor) {
+        const width = Math.max(1, canvas.clientWidth || 210);
+        const height = 88;
+        canvas.width = Math.floor(width * (window.devicePixelRatio || 1));
+        canvas.height = Math.floor(height * (window.devicePixelRatio || 1));
+        const context = canvas.getContext("2d");
+        context.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        const view = matrixView(tensor);
+        const stats = Engine.tensorStats(tensor);
+        const maxAbs = Math.max(Math.abs(stats.min || 0), Math.abs(stats.max || 0), 1e-12);
+        const rows = Math.min(view.rows, 12);
+        const columns = Math.min(view.columns, 22);
+        const cellWidth = width / columns;
+        const cellHeight = height / rows;
+        const styles = getComputedStyle(document.documentElement);
+        const positive = styles.getPropertyValue("--positive").trim() || "#2563eb";
+        const negative = styles.getPropertyValue("--negative").trim() || "#dc2626";
+        const muted = styles.getPropertyValue("--muted").trim() || "#68756d";
+        const surface = styles.getPropertyValue("--surface-2").trim() || "#edf2ed";
+        context.fillStyle = surface;
+        context.fillRect(0, 0, width, height);
+        for (let row = 0; row < rows; row += 1) {
+          for (let column = 0; column < columns; column += 1) {
+            const sourceRow = Math.min(view.rows - 1, Math.floor(row * view.rows / rows));
+            const sourceColumn = Math.min(view.columns - 1, Math.floor(column * view.columns / columns));
+            const value = view.value(sourceRow, sourceColumn);
+            const x = column * cellWidth;
+            const y = row * cellHeight;
+            if (value === -Infinity) context.fillStyle = muted;
+            else if (value >= 0) context.fillStyle = positive;
+            else context.fillStyle = negative;
+            context.globalAlpha = value === -Infinity ? 0.12 : Math.min(0.86, 0.12 + 0.74 * Math.sqrt(Math.abs(value) / maxAbs));
+            context.fillRect(x + 1, y + 1, Math.max(1, cellWidth - 2), Math.max(1, cellHeight - 2));
+          }
+        }
+        context.globalAlpha = 1;
+      }
+      function renderConfig() {
+        const c = result.config;
+        $("config-b").textContent = c.batch; $("config-s").textContent = c.seq; $("config-d").textContent = c.hidden;
+        $("config-heads").textContent = `${c.heads}/${c.kvHeads}`; $("config-ff").textContent = c.intermediate; $("config-vocab").textContent = c.vocab;
+        $("config-params").textContent = result.parameterCount.toLocaleString("zh-CN");
+      }
+      function renderRail() {
+        const labels = mode === "forward"
+          ? [["x₀", "embedding / residual stream"], ["Q K V", "attention reads normalized x₀"], ["context", "weighted information retrieval"], ["x₁", "attention residual add"], ["FFN", "token-wise transformation"], ["x₂ → loss", "final norm / vocabulary"]]
+          : [["dLoss", "start at scalar loss"], ["dFFN", "gradient through down / gate / up"], ["dAttention", "gradient through AV / QKᵀ"], ["dQKV", "GQA reduce + projections"], ["dResidual", "residual paths accumulate"], ["dEmbedding", "table rows update"]];
+        el.rail.innerHTML = labels.map(([title, subtitle]) => `<div class="rail-item"><strong>${title}</strong><small>${subtitle}</small></div>`).join("");
+      }
+      function renderBoard() {
+        const groups = Registry.groups[mode];
+        el.board.innerHTML = "";
+        groups.forEach((group, groupIndex) => {
+          const stage = document.createElement("section");
+          stage.className = "stage";
+          stage.innerHTML = `<header class="stage-header"><small>STAGE ${String(groupIndex + 1).padStart(2, "0")}</small><h2>${safeHtml(group.title)}</h2><p>${safeHtml(group.subtitle)}</p></header>`;
+          const cards = document.createElement("div");
+          cards.className = "cards";
+          group.items.forEach((entry) => cards.appendChild(makeCard(entry)));
+          stage.appendChild(cards);
+          el.board.appendChild(stage);
+        });
+      }
+      function makeCard(entry) {
+        const tensor = resolve(entry);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `matrix-card ${entry.kind}`;
+        button.setAttribute("aria-label", `${entry.label}, shape [${tensor.shape.join(", ")}], click to inspect`);
+        const stats = Engine.tensorStats(tensor);
+        button.innerHTML = `<div class="card-top"><h3>${safeHtml(entry.label)}</h3><span class="card-kind">${kindLabel(entry.kind)}</span></div><div class="shape">[${tensor.shape.join(", ")}] · ${tensor.data.length.toLocaleString("zh-CN")}</div><canvas class="thumbnail" role="img" aria-label="${safeHtml(entry.label)} heatmap"></canvas><div class="card-stats"><span>min ${format(stats.min, 2)}</span><span>max ${format(stats.max, 2)}</span><span>RMS ${format(stats.rms, 2)}</span></div>`;
+        button.addEventListener("click", () => openDetail(entry));
+        requestAnimationFrame(() => drawThumbnail(button.querySelector("canvas"), tensor));
+        return button;
+      }
+      function openDetail(entry) {
+        detail = entry; detailBatch = 0; detailHead = 0; detailRowPage = 0; detailColumnPage = 0;
+        el.detailTitle.textContent = entry.label;
+        el.detailSubtitle.textContent = `${entry.source}:${entry.key} · ${entry.kind}`;
+        renderDetailControls(); renderDetailGrid();
+        if (typeof el.dialog.showModal === "function") el.dialog.showModal(); else el.dialog.setAttribute("open", "");
+      }
+      function renderDetailControls() {
+        const tensor = resolve(detail);
+        const shape = tensor.shape;
+        el.detailBatchField.style.display = shape.length >= 3 ? "grid" : "none";
+        el.detailHeadField.style.display = shape.length === 4 ? "grid" : "none";
+        if (shape.length >= 3) { detailBatch = Math.min(detailBatch, shape[0] - 1); el.detailBatch.innerHTML = Array.from({ length: shape[0] }, (_, i) => `<option value="${i}"${i === detailBatch ? " selected" : ""}>batch ${i}</option>`).join(""); }
+        if (shape.length === 4) { detailHead = Math.min(detailHead, shape[1] - 1); el.detailHead.innerHTML = Array.from({ length: shape[1] }, (_, i) => `<option value="${i}"${i === detailHead ? " selected" : ""}>head ${i}</option>`).join(""); }
+      }
+      function axis(text, className) { const cell = document.createElement("div"); cell.className = `detail-axis ${className}`; cell.textContent = text; cell.setAttribute("role", "columnheader"); return cell; }
+      function renderDetailGrid() {
+        if (!detail) return;
+        const tensor = resolve(detail); const view = matrixView(tensor, detailBatch, detailHead); const stats = Engine.tensorStats(tensor);
+        const rowPages = Math.max(1, Math.ceil(view.rows / pageRows)); const columnPages = Math.max(1, Math.ceil(view.columns / pageColumns));
+        detailRowPage = Math.max(0, Math.min(detailRowPage, rowPages - 1)); detailColumnPage = Math.max(0, Math.min(detailColumnPage, columnPages - 1));
+        const rowStart = detailRowPage * pageRows; const rowEnd = Math.min(view.rows, rowStart + pageRows); const columnStart = detailColumnPage * pageColumns; const columnEnd = Math.min(view.columns, columnStart + pageColumns);
+        const maxAbs = Math.max(Math.abs(stats.min || 0), Math.abs(stats.max || 0), 1e-12);
+        el.detailMeta.innerHTML = `<span>shape <strong>[${tensor.shape.join(", ")}]</strong></span><span>elements <strong>${tensor.data.length.toLocaleString("zh-CN")}</strong></span><span>min <strong>${format(stats.min, 5)}</strong></span><span>max <strong>${format(stats.max, 5)}</strong></span><span>RMS <strong>${format(stats.rms, 5)}</strong></span>`;
+        el.detailGrid.style.gridTemplateColumns = `repeat(${columnEnd - columnStart + 1}, minmax(62px, 1fr))`;
+        const fragment = document.createDocumentFragment(); fragment.appendChild(axis("", "corner"));
+        for (let column = columnStart; column < columnEnd; column += 1) fragment.appendChild(axis(view.columnLabel(column), "col"));
+        for (let row = rowStart; row < rowEnd; row += 1) {
+          fragment.appendChild(axis(view.rowLabel(row), "row"));
+          for (let column = columnStart; column < columnEnd; column += 1) {
+            const value = view.value(row, column); const cell = document.createElement("div"); const masked = value === -Infinity;
+            cell.className = `detail-cell ${masked ? "masked" : value > 0 ? "positive" : value < 0 ? "negative" : ""}`;
+            if (!masked && value !== 0) cell.style.setProperty("--heat", `${Math.min(72, 10 + 62 * Math.sqrt(Math.abs(value) / maxAbs))}%`);
+            cell.textContent = format(value); const indexLabel = tensor.shape.length === 4 ? `[${detailBatch},${detailHead},${row},${column}]` : tensor.shape.length === 3 ? `[${detailBatch},${row},${column}]` : `[${row},${column}]`;
+            cell.setAttribute("role", "gridcell"); cell.setAttribute("aria-label", `${detail.label}${indexLabel} = ${format(value, 9)}`); cell.title = `${detail.label}${indexLabel} = ${format(value, 9)}`; fragment.appendChild(cell);
+          }
+        }
+        el.detailGrid.replaceChildren(fragment); el.detailPager.textContent = `行 ${rowStart + 1}–${rowEnd}/${view.rows} · 列 ${columnStart + 1}–${columnEnd}/${view.columns}`;
+        el.detailPrevRow.disabled = detailRowPage === 0; el.detailNextRow.disabled = detailRowPage >= rowPages - 1; el.detailPrevCol.disabled = detailColumnPage === 0; el.detailNextCol.disabled = detailColumnPage >= columnPages - 1;
+      }
+      function run() {
+        try {
+          const config = Engine.PRESETS[el.preset.value]; const seed = Math.max(1, Math.floor(Number(el.seed.value) || 42)); el.seed.value = seed; result = Engine.run(config, seed);
+          const report = Registry.coverage(mode, result); el.coverage.textContent = report.complete ? `${Registry.flatten(mode).length} tensors · registry complete` : `registry error: ${report.missing.join(",")}`; el.coverage.classList.toggle("bad", !report.complete);
+          renderConfig(); renderRail(); renderBoard(); el.error.style.display = "none";
+        } catch (error) { el.error.style.display = "block"; el.error.textContent = `页面遇到错误：${error.message || error}`; console.error(error); }
+      }
+      el.regenerate.addEventListener("click", run); el.preset.addEventListener("change", run);
+      el.modeButtons.forEach((button) => button.addEventListener("click", () => { mode = button.dataset.mode; el.modeButtons.forEach((peer) => peer.setAttribute("aria-pressed", String(peer === button))); run(); }));
+      el.close.addEventListener("click", () => el.dialog.close()); el.dialog.addEventListener("click", (event) => { if (event.target === el.dialog) el.dialog.close(); });
+      el.detailBatch.addEventListener("change", () => { detailBatch = Number(el.detailBatch.value); detailRowPage = 0; detailColumnPage = 0; renderDetailGrid(); });
+      el.detailHead.addEventListener("change", () => { detailHead = Number(el.detailHead.value); detailRowPage = 0; detailColumnPage = 0; renderDetailGrid(); });
+      el.detailPrevRow.addEventListener("click", () => { detailRowPage -= 1; renderDetailGrid(); }); el.detailNextRow.addEventListener("click", () => { detailRowPage += 1; renderDetailGrid(); });
+      el.detailPrevCol.addEventListener("click", () => { detailColumnPage -= 1; renderDetailGrid(); }); el.detailNextCol.addEventListener("click", () => { detailColumnPage += 1; renderDetailGrid(); });
+      window.addEventListener("resize", () => document.querySelectorAll(".thumbnail").forEach((canvas) => { const entry = Registry.flatten(mode).find((candidate) => candidate.label === canvas.getAttribute("aria-label")?.replace(" heatmap", "")); if (entry) drawThumbnail(canvas, resolve(entry)); }));
+      if (!Engine || !Registry) throw new Error("L12 engine or stream registry failed to load");
+      run();
+    })();
+  </script>
+</body>
+</html>
