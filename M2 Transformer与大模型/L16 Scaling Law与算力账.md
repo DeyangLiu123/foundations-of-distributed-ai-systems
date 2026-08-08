@@ -114,10 +114,10 @@ FFN 和 QKV 投影的工作量随序列长度 $S$ 近似线性；self-attention 
 Kaplan 的逐 token 计数给出一个清晰的结构：forward 主项约为 $2N$，context-dependent attention 项约为 $2L S d$（$L$ 为层数、$d$ 为 hidden size）；反向再按约 2 倍估算。不同实现是否计入 softmax、SwiGLU、embedding、GQA 等，会改变前面的系数，因此工程上更稳妥的判断是：
 
 1. **$S$ 远小于 $d$ 的量级**：6ND 往往足够；
-2. **$S$ 接近 $d$ 的同一量级**：attention 二次项不可再忽略；不同 FLOPs 约定给出的交叉提示约在 $6d$–$12d$，不是跨架构硬阈值；
+2. **$S$ 与 $d$ 处于同一量级**：attention 二次项不可再忽略；不同 FLOPs 约定给出的交叉提示约在 $6d$–$12d$，不是跨架构硬阈值；
 3. **超长上下文**：直接使用模型 config 和论文附录的逐项 FLOPs，不能只乘 6ND。
 
-例如，若把 $d=16{,}384$ 的宽模型放到 $S=128\text{K}$ 的长上下文，$S$ 已经和 $d$ 同一个数量级；把它当成普通 2K/4K 序列会低估 prefill 计算和内存流量。注意这条修正讨论的是训练或 prefill 的序列级 attention；decode 每次只追加一个 token，主导瓶颈会转向权重与 KV cache 的带宽，见 [[L13 自回归生成与KV缓存]]。
+例如，若把 $d=16{,}384$ 的宽模型放到 $S=128\text{K}$ 的长上下文，$S$ 已经与 $d$ 处于同一数量级；把它当成普通 2K/4K 序列会低估 prefill 计算和内存流量。注意这条修正讨论的是训练或 prefill 的序列级 attention；decode 每次只追加一个 token，主导瓶颈会转向权重与 KV cache 的带宽，见 [[L13 自回归生成与KV缓存]]。
 
 > [!warning] 常见误区：6ND 不是所有 FLOPs 的逐指令计数
 > 它忽略或平均了 embedding、logits、归一化、通信等待、重计算以及长序列 attention。写论文时应说明“按 6ND 近似”还是“按 kernel/profiler 统计”，不要把两者混成一个精确数字。
@@ -142,11 +142,11 @@ $$
 \boxed{D\approx20N},\qquad \text{即 tokens-per-parameter}\approx20.
 $$
 
-这里的 **tokens-per-parameter**（每参数 token 数）就是 $D/N$。70B 模型训练约 1.4T token，正好是约 20 token/parameter；这也是 Chinchilla 相比 280B、只用约 300B token 的 Gopher 更小却更强的直觉来源。具体最优比例会随数据质量、重复次数、学习率计划、架构和目标（只看预训练 loss，还是要看下游/推理）变化，所以“20”应当作为起点，不是验收模型的硬规则。
+这里的 **tokens-per-parameter**（每参数 token 数）就是 $D/N$。70B 模型训练约 1.4T token，相当于约 20 token/parameter；这也是 Chinchilla 相比 280B、只用约 300B token 的 Gopher 更小却更强的直觉来源。具体最优比例会随数据质量、重复次数、学习率计划、架构和目标（只看预训练 loss，还是要看下游/推理）变化，所以“20”应当作为起点，不是验收模型的硬规则。
 
 ### 3.3 over-training 与训练-推理算力权衡
 
-固定 $N$ 后，把 $D/N$ 做得明显高于约 20，常被称为 **over-training**（过训练/过度训练）。它不一定意味着模型在训练集上过拟合；这里更准确的含义是：相对于“只为这一次预训练 loss 最优”的配比，给一个较小模型喂了更多 token。
+固定 $N$ 后，把 $D/N$ 做得明显高于 20 这一经验值，常被称为 **over-training**（过训练/过度训练）。它不一定意味着模型在训练集上过拟合；这里更准确的含义是：相对于“只为这一次预训练 loss 最优”的配比，给一个较小模型喂了更多 token。
 
 为什么有人愿意这样做？因为训练和服务是两笔不同的账。大模型每个请求的前向计算约为 $2N$ FLOPs/token，权重和 KV cache 也更大；一个较小模型即使训练阶段多花一些 token，部署时却能用更少的 GPU、更低的 decode 带宽和更小的尾延迟。这就是 **training-inference tradeoff**（训练-推理算力权衡）：
 
@@ -157,7 +157,7 @@ $$
 | MoE | 总参数大，active 参数小 | FLOPs 按 active 计，但权重仍需放置 | 能接受 all-to-all 与复杂并行的集群 |
 
 > [!tip] 系统视角
-> “compute-optimal”只回答预训练 loss 的最优，不自动回答“总拥有成本（TCO）最优”。当模型要服务数十亿个请求时，训练多花的那部分算力可能通过更便宜的 inference 很快摊薄。
+> “compute-optimal”只回答预训练 loss 的最优，不自动回答“总拥有成本（TCO）最优”。当模型要服务数十亿个请求时，额外的训练成本可能很快被更低的 inference 成本摊薄。
 
 ## 四、从 FLOPs 到 GPU-hours、美元和兆瓦
 
@@ -214,7 +214,7 @@ MFU 分母必须用稠密峰值，不能把 2:4 sparse marketing 值塞进来；
 >
 > **④ 兆瓦与能源**
 >
-> H100 SXM 功耗约 700 W，16,384 张卡的 GPU 部分约 $11.5$ MW。按 PUE=1.2，设施输入功率约 $13.8$ MW；运行 68 天约消耗 $13.8\times(68\times24)\approx2.25\times10^4$ MWh，即 **22.5 GWh** 的量级。服务器 CPU、网络和冷却结构的真实功率还要以测量为准。
+> H100 SXM 功耗约 700 W，16,384 张卡的 GPU 部分约 $11.5$ MW。按 PUE=1.2，设施输入功率约 $13.8$ MW；运行 68 天约消耗 $13.8\times(68\times24)\approx2.25\times10^4$ MWh，即 **22.5 GWh** 的量级。服务器 CPU、网络设备和冷却系统的实际功率还要以测量为准。
 
 **反算一次 Chinchilla 配比。** 如果把上面的 $C=3.7908\times10^{25}$ 也交给 compute-optimal 近似，并暂取 $D=20N$，则：
 
@@ -229,7 +229,7 @@ N^*=\sqrt{\frac{3.7908\times10^{25}}{120}}
 D^*=20N^*\approx1.12\times10^{13}=11.2\text{T tokens}.
 $$
 
-这是把经验比例外推到旗舰规模的教学估算；它没有重新拟合数据质量、架构和长序列修正，所以只能回答“同一粗略预算下，配比大概在哪里”，不能宣称这是某个项目应该采用的唯一方案。
+这是把经验比例外推到旗舰规模的教学估算；它没有针对数据质量、架构和长序列修正重新拟合经验关系，所以只能回答“同一粗略预算下，配比大概在哪里”，不能宣称这是某个项目应该采用的唯一方案。
 
 这条链把“3.8×10²⁵ FLOPs”翻译成系统语言：约 2,600 万 GPU·h、约千万美元到亿美元之间的租用量级、以及几十 GWh 的设施能源。任何一环的口径没写清，读者都无法复算。
 
@@ -243,14 +243,14 @@ $$
 
 **DeepSeek-V3 的剪刀差尤其值得记住。** 如果错误地把总参数 671B 塞进 6ND，会得到 $5.96\times10^{25}$ FLOPs，约是 active-parameter 估算的 18.1 倍。反过来，active 参数只说明每个 token 的算力路径，不代表显存只需放 37B：总专家权重仍要分布在设备上，且每层可能产生跨 GPU 的 all-to-all。MoE 的完整系统账留到 [[L17 MoE混合专家]] 和 [[L46 专家并行与MoE训练]]。
 
-用报告给出的 2.788M H800 GPU·h 粗略相除：
+将上面按 active 参数估算的总 FLOPs 除以报告给出的 2.788M H800 GPU·h：
 
 $$
 \frac{3.29\times10^{24}}{2.788\times10^6\times3600}
 \approx3.27\times10^{14}\ \text{FLOPS}=327\ \text{TFLOPS/GPU}.
 $$
 
-这是把全训练阶段摊平后的 effective FLOPS；若和 H800 的 FP8 峰值（统一表约 1979 TFLOPS）比较约为 16.5%，和 BF16 稠密峰值约 989 TFLOPS 比较则约为 33%。两种分母都必须标明精度，且不能把这个“全阶段平均”误读成某个单独 kernel 的 MFU。报告还明确说明 2.788M 小时包含 119K 小时的上下文扩展和 5K 小时的后训练，所以它和只对 14.8T 预训练 token 做的 6ND 并非完全同一边界。
+这是把全训练阶段摊平后的 effective FLOPS；若与 H800 的 FP8 峰值（统一表约 1979 TFLOPS）相比，该比例约为 16.5%；若与 BF16 稠密峰值约 989 TFLOPS 相比，则约为 33%。两种分母都必须标明精度，且不能把这个“全阶段平均”误读成某个单独 kernel 的 MFU。报告还明确说明 2.788M 小时包含 119K 小时的上下文扩展和 5K 小时的后训练，所以它和只对 14.8T 预训练 token 做的 6ND 并非完全同一边界。
 
 ### 5.1 两张图：幂律与 $N\times D$ 平面
 
@@ -293,11 +293,11 @@ flowchart LR
 
 现在逐句回读：
 
-1. **“We fit a power law for loss as a function of model size, data, and compute budget.”** 这不是说任何模型都服从永恒定律，而是用实验拟合 $L(N,D)$，在适用范围内预测扩大模型、数据或计算后的收益。
+1. **“We fit a power law for loss as a function of model size, data, and compute budget.”** 这不是说任何模型都服从永恒定律，而是用实验拟合 $L(N,D)$，在适用范围内预测增加模型规模、数据量或计算量后的收益。
 2. **“Under the dense-Transformer approximation, training compute is $C\approx6ND$.”** 每参数每 token 的 forward 约 2 FLOPs，backward 约 4 FLOPs，合起来 6N，再乘 token budget $D$；长序列 attention、embedding 和 logits 是要单独检查的修正。
 3. **“A compute-optimal run keeps tokens-per-parameter near the Chinchilla prescription.”** Chinchilla 的经验起点是 $D/N\approx20$，并不意味着所有模型、数据和下游目标都必须精确等于 20；超过它就是在考虑 over-training 与推理成本的权衡。
-4. **“Compare effective FLOPS with peak and MFU.”** 用 $C/T$ 得到有效速率，再除以卡数乘单卡**稠密**峰值；GPU-hours 是卡数乘墙钟小时，二者不是同一个单位。
-5. **“For a sparse model, use active parameters per token.”** MoE 的每 token FLOPs 应以 active 参数为起点，但总参数决定放置显存和通信规模；把 671B 总参数直接当成每 token 计算量会严重高估，反过来只报 37B 又会漏掉系统代价。
+4. **“Compare effective FLOPS with peak and MFU.”** 用 $C/T$ 得到有效速率，再除以“卡数 × 单卡**稠密**峰值”；GPU-hours 是卡数乘墙钟小时，二者不是同一个单位。
+5. **“For a sparse model, use active parameters per token.”** MoE 的每 token FLOPs 应以 active 参数为起点，但总参数决定权重放置所需的显存，并影响通信规模；把 671B 总参数直接当成每 token 计算量会严重高估，反过来只报 37B 又会漏掉系统代价。
 
 一句话总结：==先用 $6ND$ 把训练报告换成 FLOPs，再用有效 FLOPS、MFU、GPU-hours 和 active/total 参数的口径把它还原成可核验的系统账本==。
 
@@ -312,7 +312,7 @@ flowchart LR
 | 6ND | 训练计算量估算式 | 按一次乘加 2 FLOPs、backward≈2×forward，估算 $C\approx6ND$。 |
 | compute-optimal | 算力最优 | 在固定 $C$ 下选择使目标 loss 最低的 $N,D$ 配比。 |
 | Chinchilla | Chinchilla 配比 | Hoffmann 等给出的经验结论：最优 $D/N$ 在其设置中约为 20。 |
-| over-training | 过训练 / 过度训练 | 固定模型后使用明显多于 compute-optimal 配比的 token，以换取更便宜的推理。 |
+| over-training | 过训练 / 过度训练 | 固定模型后采用明显高于 compute-optimal 值的 $D/N$ 配比，以换取更便宜的推理。 |
 | tokens-per-parameter | 每参数 token 数 | $D/N$，用来描述模型容量与训练数据的比例。 |
 | GPU-hours | GPU 小时 | GPU 数量乘墙钟小时，记录集群资源消耗，不等于墙钟时间。 |
 | effective FLOPS | 有效 FLOPS | 训练工作量除以墙钟时间得到的平均实际速率。 |
@@ -334,7 +334,7 @@ flowchart LR
 > [!note]- 参考答案
 > 1. $N$ 只决定每 token 的计算规模；$D$ 是消费的 token 总数，训练总量近似 $C=6ND$。同一个 $N$ 训练 0.3T 或 15T token，账单相差两个数量级。
 > 2. forward≈$2N$ FLOPs/token；backward≈forward 的两倍≈$4N$；合计≈$6N$ FLOPs/token，乘 $D$ 得 $6ND$。
-> 3. 当序列长度 $S$ 接近 hidden size 的同一量级时，$QK^T$ 和加权 $V$ 的 $S^2$ 项不可忽略；不同计数约定的交叉提示约在 $6d$–$12d$，长序列还会放大 activation、显存读写和通信压力。
+> 3. 当序列长度 $S$ 与 hidden size 处于同一量级时，$QK^T$ 和加权 $V$ 的 $S^2$ 项不可忽略；不同计数约定的交叉提示约在 $6d$–$12d$，长序列还会放大 activation、显存读写和通信压力。
 > 4. 在固定 $C$ 下让 loss 最低的 $N,D$ 配置叫 compute-optimal；$D\approx20N$ 表示每个参数训练约 20 个 token，是 Chinchilla 论文在其设置中的经验起点。
 > 5. $C=6\times70\times10^9\times1.4\times10^{12}=5.88\times10^{23}$ FLOPs。有效速率=$1024\times989\times10^{12}\times0.4\approx4.05\times10^{17}$ FLOPS；时间≈$1.45\times10^6$ s≈16.8 天。
 > 6. 6ND 的每 token 粗算应使用 37B active 参数；671B 总参数仍决定专家权重的驻留显存，router、shared 部分和跨 GPU all-to-all 也会带来额外系统代价。
