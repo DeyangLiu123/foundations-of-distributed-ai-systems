@@ -103,17 +103,17 @@ $$
 
 ```mermaid
 flowchart LR
-    H["token hidden state h_t"] --> R["router / gating network\n得到 E 个分数"]
-    R --> K["top-k routing\n选索引 I_t 与权重 α"]
-    K --> E1["expert 1\nFFN"]
-    K --> E2["expert 2\nFFN"]
-    K --> En["… expert E\n其余未激活"]
-    H --> SE["shared expert\n可选：人人都过"]
+    H["token hidden state h_t"] --> R["router / gating network<br/>得到 E 个分数"]
+    R --> K["top-k routing<br/>选索引 I_t 与权重 α"]
+    K --> E1["expert 1<br/>FFN"]
+    K --> E2["expert 2<br/>FFN"]
+    K --> En["… expert E<br/>其余未激活"]
+    H --> SE["shared expert<br/>可选：人人都过"]
     E1 --> C["weighted combine"]
     E2 --> C
     En -. "未被选中" .-> C
     SE --> C
-    C --> Y["输出 y_t\n回到 residual stream"]
+    C --> Y["输出 y_t<br/>回到 residual stream"]
 ```
 
 ## 二、MoE 的两类麻烦：负载均衡与容量上限
@@ -171,14 +171,14 @@ flowchart TB
     subgraph S1["Rank 1：本地 token" ]
         A1["t3,t4,t5…"]
     end
-    A0 --> D["按目标 expert 分桶\ndispatch"]
+    A0 --> D["按目标 expert 分桶<br/>dispatch"]
     A1 --> D
-    D == "all-to-all #1" ==> X0["Rank 0 experts\nE0…"]
-    D == "all-to-all #1" ==> X1["Rank 1 experts\nE1…"]
-    X0 --> C["本地 FFN 输出\n按来源 rank 分桶"]
+    D == "all-to-all #1" ==> X0["Rank 0 experts<br/>E0…"]
+    D == "all-to-all #1" ==> X1["Rank 1 experts<br/>E1…"]
+    X0 --> C["本地 FFN 输出<br/>按来源 rank 分桶"]
     X1 --> C
-    C == "all-to-all #2" ==> B0["回 Rank 0\n还原 + combine"]
-    C == "all-to-all #2" ==> B1["回 Rank 1\n还原 + combine"]
+    C == "all-to-all #2" ==> B0["回 Rank 0<br/>还原 + combine"]
+    C == "all-to-all #2" ==> B1["回 Rank 1<br/>还原 + combine"]
 ```
 
 网络视角下，通信量主要跟“这一层有多少 token、每个 token 的 hidden size、数据精度和 top-k”有关，而不是只跟总参数量有关。top-2 会让一个 token 最多产生两份 dispatch；跨节点时还要付消息启动、重排和拥塞代价。按 [[03 约定与符号]] 的课内口径，NDR 端口带宽为 400 Gb/s，即每方向 50 GB/s；H100 SXM 的 NVLink 双向合计带宽为 900 GB/s，每方向约 450 GB/s。约 9 倍的单向带宽差距解释了为什么 TP 常尽量留在机箱内，而 EP 的跨节点流量必须精心规划。真正的 EP 调度、通信拓扑和 overlap 见 [[L46 专家并行与MoE训练]]。
